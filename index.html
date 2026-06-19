@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prospecção PODs - Produção</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style> 
+        #map { height: 320px; border-radius: 0.75rem; z-index: 1; width: 100%; } 
+        .cursor-pointer { cursor: pointer; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); z-index: 9999; align-items: center; justify-content: center; padding: 20px; }
+        .modal.active { display: flex; }
+        .kanban-column { min-width: 250px; background: #f8fafc; border-radius: 12px; padding: 12px; height: 100%; border: 1px solid #e2e8f0; flex: 1; min-height: 450px; }
+        .kanban-card { cursor: grab; transition: transform 0.2s, box-shadow 0.2s; }
+        .kanban-card:active { cursor: grabbing; transform: scale(0.98); }
+        #virt-spacer-top, #virt-spacer-bottom { pointer-events: none; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 px-6 py-4 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+            <h1 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <span>🚀</span> Prospecção PODs
+            </h1>
+            <p class="text-xs text-slate-500 font-medium">Inteligência operacional para expansão</p>
+        </div>
+        
+        <div class="flex items-center gap-2 flex-row flex-nowrap whitespace-nowrap">
+            <button onclick="abrirModal('modalNovoPod')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5 stroke-[3px]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+                Novo POD
+            </button>
+            <button onclick="abrirModal('modalOperacional'); carregarDadosKanban();" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md flex items-center gap-1.5">
+                📋 Visão Operacional
+            </button>
+            <div class="h-8 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+            
+            <select id="seletor-cidades" onchange="executarFiltrosLocais()" class="bg-slate-100 border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none">
+                <option value="todos" selected>Todas as Cidades</option>
+            </select>
+        </div>
+    </header>
+
+    <main class="p-6 grid grid-cols-1 xl:grid-cols-4 gap-6 max-w-[1700px] mx-auto">
+        
+        <section class="xl:col-span-3 flex flex-col gap-4">
+            
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-b-4 border-b-slate-400">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">PODs carregados</span>
+                    <p id="cont-total" class="text-2xl font-bold text-slate-800">0</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-b-4 border-b-indigo-500">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Vagas Mapeadas</span>
+                    <p id="cont-vagas" class="text-2xl font-bold text-indigo-600">0</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-b-4 border-b-sky-500">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Fichas com Site</span>
+                    <p id="cont-sites" class="text-2xl font-bold text-sky-600">0</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-b-4 border-b-amber-500">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Em Negociação/Orçamento</span>
+                    <p id="cont-ativos" class="text-2xl font-bold text-amber-600">0</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-b-4 border-b-emerald-600">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ativo</span>
+                    <p id="cont-fechados-top" class="text-2xl font-bold text-emerald-600">0</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap lg:flex-nowrap gap-2 items-center">
+                <div class="relative flex-grow min-w-[140px]">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-xs">🔍</span>
+                    <input type="text" id="filtro-busca" oninput="filtrarComDebounce()" placeholder="nome do POD ou rua" class="w-full border border-slate-300 rounded-lg pl-8 pr-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+
+                <select id="filtro-origem" onchange="executarFiltrosLocais()" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white font-bold text-emerald-600 shrink-0">
+                    <option value="todos">Origem: Toda a Base</option>
+                    <option value="prospeccao">Apenas Prospecção</option>
+                    <option value="base_interna">Apenas Base Interna</option>
+                </select>
+
+                <select id="filtro-bairro" onchange="executarFiltrosLocais()" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white font-medium shrink-0 max-w-[150px]">
+                    <option value="todos">Bairro: Todos</option>
+                </select>
+                
+                <select id="filtro-capacidade" onchange="executarFiltrosLocais()" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white font-medium shrink-0">
+                    <option value="todos">Capacidade (Todas)</option>
+                    <option value="hubs">HUBs (+40)</option>
+                    <option value="grandes">Grandes (10-40)</option>
+                    <option value="pequenos">Pequenos (-10)</option>
+                </select>
+
+                <select id="filtro-status" onchange="executarFiltrosLocais()" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white font-bold text-indigo-600 shrink-0">
+                    <option value="todos">Status: Todos</option>
+                    <option value="Não Contatado">Não Contatado</option>
+                    <option value="Tentativa 1">Tentativa 1</option>
+                    <option value="Orçando">Orçando</option>
+                    <option value="Em Negociação">Em Negociação</option>
+                    <option value="Visita Agendada">Visita Agendada</option>
+                    <option value="Ativo">Ativo</option>
+                    <option value="Inativo">Inativo / Excluded</option>
+                </select>
+
+                <button id="btn-filtro-fav" onclick="alternarFiltroBotao('fav')" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-1 transition-colors shrink-0">
+                    <span id="icon-filter-fav">🤍</span> Fav
+                </button>
+
+                <button id="btn-filtro-24h" onclick="alternarFiltroBotao('24h')" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-1 transition-colors shrink-0">
+                    <span>⏰</span> 24h
+                </button>
+
+                <button id="btn-filtro-disp" onclick="alternarFiltroBotao('disp')" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-1 transition-colors shrink-0">
+                    <span id="icon-filter-disp">⚪</span> Disp
+                </button>
+				
+				<button id="btn-filtro-ev" onclick="alternarFiltroBotao('ev')" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-1 transition-colors shrink-0">
+					<span id="icon-filter-ev">⚪</span> 🔌 EV
+				</button>
+				
+            </div>
+
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="overflow-x-auto w-full max-h-[680px] overflow-y-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-200 sticky top-0 z-10">
+                                <th class="p-4 w-10 text-center">❤️</th>
+                                <th class="p-4">Nome do POD / Tipo / Link</th>
+                                <th class="p-4">Bairro / Origem</th>
+                                <th class="p-4">Vagas Negociadas</th>
+                                <th class="p-4">Mensalista / Contato</th>
+                                <th class="p-4 text-center">Rota</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-corpo-real" class="text-sm divide-y divide-slate-100">
+                            <tr>
+                                <td colspan="6" class="p-8 text-center text-slate-400 italic">Conectando ao banco de dados do Supabase...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="xl:col-span-1 flex flex-col gap-6">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <h3 class="text-xs font-bold text-slate-400 uppercase mb-3">📍 Geolocalização em Tempo Real</h3>
+                <div id="map">Carregando mapa nativo...</div>
+            </div>
+
+            <div id="ficha-tecnica-lateral" class="bg-white p-5 rounded-xl border border-indigo-100 shadow-xl flex flex-col gap-4 border-t-4 border-t-indigo-600 hidden">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <span id="p-tipo" class="text-[9px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-bold uppercase tracking-wide">-</span>
+                        <h3 id="p-titulo" class="text-sm font-bold text-slate-900 mt-1">Selecione um POD</h3>
+                    </div>
+                    <span id="lbl-origem-badge" class="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wide">-</span>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2 text-[10px]" id="p-vagas-dinamico-wrapper">
+                    </div>
+                
+                <div class="grid grid-cols-2 gap-2 text-[10px] mt-[-8px]">
+                    <div class="bg-slate-50 p-2 rounded border border-slate-100 relative">
+                        <p class="text-slate-400 font-bold uppercase">Valor Mensalista</p>
+                        <p id="p-mensalista" class="font-bold text-slate-800 text-xs">-</p>
+                        <span onclick="abrirPopupEdicao('valor_mensalista', 'Valor Mensalista')" class="absolute top-1 right-1 cursor-pointer text-slate-400 hover:text-slate-900">✏️</span>
+                    </div>
+                    <div class="bg-emerald-50/50 p-2 rounded border border-emerald-100 relative">
+                        <p class="text-emerald-600 font-bold uppercase">Preço Ofertado</p>
+                        <p id="p-oferta" class="font-bold text-emerald-700 text-xs">-</p>
+                        <span onclick="abrirPopupEdicao('preco_ofertado', 'Preço Ofertado')" class="absolute top-1 right-1 cursor-pointer text-slate-400 hover:text-slate-900">✏️</span>
+                    </div>
+                    <div class="bg-rose-50/50 p-2 rounded border border-rose-100 relative">
+                        <p class="text-rose-600 font-bold uppercase">Contraproposta</p>
+                        <p id="p-contra" class="font-bold text-rose-700 text-xs">-</p>
+                        <span onclick="abrirPopupEdicao('contraproposta', 'Contraproposta')" class="absolute top-1 right-1 cursor-pointer text-slate-400 hover:text-slate-900">✏️</span>
+                    </div>
+                    <div class="bg-slate-50 p-2 rounded border border-slate-100 relative">
+                        <p class="text-slate-400 font-bold uppercase">Telefone</p>
+                        <p id="p-tel" class="font-bold text-slate-800 text-xs">-</p>
+                        <span onclick="abrirPopupEdicao('telefone', 'Telefone')" class="absolute top-1 right-1 cursor-pointer text-slate-400 hover:text-slate-900">✏️</span>
+                    </div>
+                    <div class="bg-slate-50 p-2 rounded border border-slate-100 relative">
+                        <p class="text-slate-400 font-bold uppercase">Website / Link</p>
+                        <p id="p-site" class="font-bold text-indigo-600 text-xs truncate">-</p>
+                        <span onclick="abrirPopupEdicao('site', 'Website')" class="absolute top-1 right-1 cursor-pointer text-slate-400 hover:text-slate-900">✏️</span>
+                    </div>
+                    <div class="bg-slate-50 p-2 rounded border border-slate-100 col-span-2 relative">
+                        <p class="text-slate-400 font-bold uppercase">Contato Decisor</p>
+                        <p id="p-contato-nome" class="font-bold text-slate-800 text-xs">-</p>
+                        <span onclick="abrirPopupEdicao('contato_nome', 'Nome do Contato')" class="absolute top-1 right-1 cursor-pointer text-slate-400 hover:text-slate-900">✏️</span>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-100 pt-3 relative">
+                    <div class="flex justify-between items-center mb-2">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase">📋 Detalhes Avançados de Campo</p>
+                        <span onclick="abrirModalEdicaoInfra()" class="text-xs cursor-pointer text-slate-400 hover:text-slate-900 p-1 font-bold">✏️ Edit</span>
+                    </div>
+                    <div class="grid grid-cols-1 gap-1 text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <div><strong>🚗 Entrada Veículos:</strong> <span id="lbl-vei">Não preenchido</span></div>
+                        <div><strong>🚶 Entrada Pedestres:</strong> <span id="lbl-ped">Não preenchido</span></div>
+                        <div><strong>🧱 Tipo Cobertura:</strong> <span id="lbl-cob">Não preenchido</span></div>
+                        <div><strong>🏗️ Pavimento:</strong> <span id="lbl-pav">Não preenchido</span></div>
+                        <div><strong>📐 Configuração:</strong> <span id="lbl-conf">Não preenchido</span></div>
+                        <div><strong>🔥 Incêndio:</strong> <span id="lbl-inc">Não preenchido</span></div>
+                        <div><strong>🧽 Permite Lavagem:</strong> <span id="lbl-lav">Não preenchido</span></div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-100 pt-2">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">⚙️ Parâmetros Técnicos e Operação</p>
+                    <div class="grid grid-cols-2 gap-2 text-xs text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="chk-vagas" class="rounded text-indigo-600"> Demarcado</label>
+						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="chk-cam" class="rounded text-indigo-600"> Câmeras</label>
+						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="chk-gua" class="rounded text-indigo-600"> Guarita</label>
+						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="chk-24h" class="rounded text-indigo-600"> Virar 24h</label>
+						<label class="flex items-center gap-2 cursor-pointer col-span-2 border-t border-slate-200 pt-1.5 mt-0.5 font-bold text-indigo-700"><input type="checkbox" id="chk-overbooking" class="rounded text-indigo-600"> 📈 Permite Overbooking</label>
+						<label class="flex items-center gap-2 cursor-pointer col-span-2 border-t border-slate-200 pt-1.5 mt-0.5 font-bold text-purple-700"><input type="checkbox" id="chk-ev-charger" class="rounded text-purple-600"> 🔌 Possui Carregador EV</label>
+					</div>
+                </div>
+				
+				<div class="bg-slate-50 p-3 rounded-lg border border-slate-200 flex flex-col gap-2">
+					<p class="text-[10px] font-bold text-slate-400 uppercase">🌐 Infraestrutura de Conexão e Rede</p>
+					<div>
+						<label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">📍 Local do Roteador Principal</label>
+						<input type="text" id="p-local-roteador" placeholder="Ex: Guarita principal / Subsolo - Vaga 10" class="w-full border border-slate-300 rounded-lg p-1.5 text-xs outline-none bg-white">
+					</div>
+					<div>
+						<label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">📍 Local da Starlink</label>
+						<input type="text" id="p-local-starlink" placeholder="Ex: Guarita principal / Subsolo - Vaga 10" class="w-full border border-slate-300 rounded-lg p-1.5 text-xs outline-none bg-white">
+					</div>
+					<div>
+						<label class="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">📍 Local do Amplificador / Repetidor</label>
+						<input type="text" id="p-local-amplificador" placeholder="Ex: Subsolo G2 / Não possui" class="w-full border border-slate-300 rounded-lg p-1.5 text-xs outline-none bg-white">
+					</div>
+				</div>				
+
+                <div>
+					<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Status Atual do Funil</label>
+					<select id="p-status-select" class="w-full border border-slate-300 rounded-lg p-2 text-xs font-bold bg-white">
+						<option value="Não Contatado">Não Contatado</option>
+						<option value="Tentativa 1">Tentativa 1</option>
+						<option value="Orçando">Orçando</option>
+						<option value="Em Negociação">Em Negociação</option>
+						<option value="Visita Agendada">Visita Agendada</option>
+						<option value="Ativo">Ativo</option>
+						<option value="Inativo">Inativo / Excluded</option>
+					</select>
+				</div>
+
+                <div>
+					<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Notas e Observações Operacionais</label>
+					<textarea id="p-obs" rows="3" placeholder="Histórico técnico..." class="w-full border border-slate-300 rounded-lg p-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50"></textarea>
+					<div id="p-hashtags-container" class="flex flex-wrap gap-1 mt-1.5"></div>
+				</div>
+
+				<div class="mt-1">
+					<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">📢 Enxoval de Marketing (Ativações Atuais)</label>
+					<textarea id="p-marketing" rows="2" placeholder="Ex: Possui 2 banners na entrada, letreiro na guarita..." class="w-full border border-slate-300 rounded-lg p-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50"></textarea>
+				</div>
+
+				<div class="flex flex-col gap-1.5 mt-2">
+					<button onclick="salvarAlteracoesFichaLateral()" class="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-lg text-xs hover:bg-indigo-700 transition-all shadow-md">
+						💾 Salvar Alterações do POD
+					</button>
+					<button id="btn-blacklist-lateral" onclick="toggleBlacklistAtual()" class="w-full text-white font-bold py-2 rounded-lg text-xs transition-all shadow-md bg-rose-600 hover:bg-rose-700">
+						🚫 Banir do CRM (Blacklist)
+					</button>
+				</div>
+            </div>
+            
+            <div id="ficha-placeholder" class="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-400 italic shadow-sm">
+                Nenhum POD selecionado para auditoria técnica.
+            </div>
+        </section>
+    </main>
+
+    <div id="modalOperacional" class="modal" onclick="fecharModalSeClicarFora(event)">
+        <div class="bg-white w-[98vw] h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center bg-slate-900 text-white">
+                <div>
+                    <h2 class="text-xl font-bold">📋 Operação Comercial Estratégica</h2>
+                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Painel de Controle Flutuante</p>
+                </div>
+                <button onclick="fecharModal('modalOperacional')" class="text-white bg-white/10 hover:bg-white/20 w-8 h-8 rounded-full flex items-center justify-center transition-all">×</button>
+            </div>
+            
+            <div class="flex flex-grow overflow-hidden">
+                <div class="w-3/4 p-6 overflow-x-auto bg-slate-100 flex gap-4">
+                    <div class="kanban-column flex flex-col gap-3" ondragover="allowDrop(event)" ondrop="handleDropCard(event, 'Não Contatado')">
+                        <h3 class="font-bold text-[10px] text-slate-500 uppercase px-2 mb-1 flex justify-between">Não Contatado <span id="k-count-frio">(0)</span></h3>
+                        <div id="k-col-frio" class="flex flex-col gap-2 overflow-y-auto flex-grow pb-12"></div>
+                    </div>
+                    <div class="kanban-column flex flex-col gap-3" ondragover="allowDrop(event)" ondrop="handleDropCard(event, 'Tentativa 1')">
+                        <h3 class="font-bold text-[10px] text-amber-500 uppercase px-2 mb-1 flex justify-between">Tentativa 1 <span id="k-count-t1">(0)</span></h3>
+                        <div id="k-col-t1" class="flex flex-col gap-2 overflow-y-auto flex-grow pb-12"></div>
+                    </div>
+                    <div class="kanban-column flex flex-col gap-3" ondragover="allowDrop(event)" ondrop="handleDropCard(event, 'Orçando')">
+                        <h3 class="font-bold text-[10px] text-orange-500 uppercase px-2 mb-1 flex justify-between">Orçando <span id="k-count-orc">(0)</span></h3>
+                        <div id="k-col-orc" class="flex flex-col gap-2 overflow-y-auto flex-grow pb-12"></div>
+                    </div>
+                    <div class="kanban-column flex flex-col gap-3" ondragover="allowDrop(event)" ondrop="handleDropCard(event, 'Em Negociação')">
+                        <h3 class="font-bold text-[10px] text-indigo-500 uppercase px-2 mb-1 flex justify-between">Em Negociação <span id="k-count-neg">(0)</span></h3>
+                        <div id="k-col-neg" class="flex flex-col gap-2 overflow-y-auto flex-grow pb-12"></div>
+                    </div>
+                    <div class="kanban-column flex flex-col gap-3" ondragover="allowDrop(event)" ondrop="handleDropCard(event, 'Ativo')">
+                        <h3 class="font-bold text-[10px] text-emerald-600 uppercase px-2 mb-1 flex justify-between">Ativo <span id="k-count-fechado">(0)</span></h3>
+                        <div id="k-col-fechado" class="flex flex-col gap-2 overflow-y-auto flex-grow pb-12"></div>
+                    </div>
+                </div>
+
+                <div class="w-1/4 bg-white border-l border-slate-200 p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-bold text-xs text-slate-900 uppercase mb-6 flex items-center gap-2">Métricas Consolidadas</h3>
+                        <div class="flex flex-col gap-4">
+                            <div class="flex flex-col gap-1">
+                                <div class="flex justify-between text-[10px] font-bold text-slate-500"><span>POTENCIAIS (TOTAL)</span><span id="f-total">0</span></div>
+                                <div class="w-full bg-slate-100 h-1.5 rounded-full"><div class="bg-slate-400 h-full w-full"></div></div>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <div class="flex justify-between text-[10px] font-bold text-slate-500"><span>TENTATIVA 1</span><span id="f-t1">0</span></div>
+                                <div class="w-full bg-slate-100 h-1.5 rounded-full"><div id="f-bar-t1" class="bg-amber-400 h-full" style="width: 0%"></div></div>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <div class="flex justify-between text-[10px] font-bold text-slate-500"><span>ORÇANDO</span><span id="f-orc">0</span></div>
+                                <div class="w-full bg-slate-100 h-1.5 rounded-full"><div id="f-bar-orc" class="bg-orange-500 h-full" style="width: 0%"></div></div>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <div class="flex justify-between text-[10px] font-bold text-slate-500"><span>EM NEGOCIAÇÃO</span><span id="f-neg">0</span></div>
+                                <div class="w-full bg-slate-100 h-1.5 rounded-full"><div id="f-bar-neg" class="bg-indigo-600 h-full" style="width: 0%"></div></div>
+                            </div>
+                            <div class="flex flex-col gap-1 border-t pt-2 mt-1">
+                                <div class="flex justify-between text-[10px] font-bold text-slate-500"><span>ATIVO</span><span id="f-fec">0</span></div>
+                                <div class="w-full bg-slate-100 h-1.5 rounded-full"><div id="f-bar-fec" class="bg-emerald-500 h-full" style="width: 0%"></div></div>
+                            </div>
+                            <div class="flex flex-col gap-1 border-t pt-2 mt-1">
+                                <div class="flex justify-between text-[10px] font-bold text-rose-500"><span>INATIVOS / EXCLUDED</span><span id="f-ina">0</span></div>
+                                <div class="w-full bg-slate-100 h-1.5 rounded-full"><div id="f-bar-ina" class="bg-rose-500 h-full" style="width: 0%"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalNovoPod" class="modal" onclick="fecharModalSeClicarFora(event)">
+        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center bg-emerald-600 text-white">
+                <div>
+                    <h2 class="text-lg font-bold">➕ Ficha Comercial de Expansão (Campo)</h2>
+                    <p class="text-[10px] text-emerald-100 uppercase font-bold">Inclusão ao vivo na tabela master do Supabase</p>
+                </div>
+                <button onclick="fecharModal('modalNovoPod')" class="text-white bg-white/10 hover:bg-white/20 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xl leading-none transition-all">×</button>
+            </div>
+            
+            <form onsubmit="salvarNovoPodBanco(event)" class="p-6 flex flex-col gap-4 overflow-y-auto max-h-[80vh]">
+                <div class="border-b border-slate-100 pb-3">
+                    <p class="text-[10px] font-bold text-emerald-600 uppercase mb-2">🎯 Localização, Endereço e Célula H3</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Nome do POD / Estacionamento *</label>
+                            <input type="text" id="ins-nome" required placeholder="Ex: Master Estacionamento Central" class="w-full border border-slate-300 rounded-lg p-2 text-xs outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Tipo de POD / Categoria *</label>
+                            <select id="ins-tipo" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white">
+                                <option>Estacionamento de rua</option>
+                                <option>Estacionamento de esquina</option>
+                                <option>Estacionamento particular</option>
+                                <option>Hotel (Particular)</option>
+                                <option>Rede de Estacionamentos</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-2 mt-2">
+                        <div class="col-span-2">
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Cidade *</label>
+                            <input type="text" id="ins-cidade" required value="São Paulo" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Distrito (IBGE)</label>
+                            <input type="text" id="ins-distrito" placeholder="Ex: Pinheiros" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Estado *</label>
+                            <input type="text" id="ins-estado" required value="SP" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1">Endereço Completo formatado com Número e CEP *</label>
+                        <input type="text" id="ins-endereco" required placeholder="Rua Augusta, 1200 - CEP: 01304-001" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 mt-2">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Bairro de Atuação *</label>
+                            <input type="text" id="ins-bairro" required placeholder="Ex: Consolação" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Célula Uber H3 (Res 8)</label>
+                            <input type="text" id="ins-h3" placeholder="88a8100c..." class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Estimativa de Vagas IPTU</label>
+                            <input type="number" id="ins-vagas-estimadas" placeholder="0" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Latitude (Ex: -23.549393) *</label>
+                            <input type="text" id="ins-lat" required placeholder="-23.549393" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Longitude (Ex: -46.645031) *</label>
+                            <input type="text" id="ins-lng" required placeholder="-46.645031" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-b border-slate-100 pb-3">
+                    <p class="text-[10px] font-bold text-indigo-600 uppercase mb-2">💰 Interação Comercial, Contatos e Precificação</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Nome do Dono / Decisor</label>
+                            <input type="text" id="ins-contato" placeholder="Ex: Sr. Carlos" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Telefone Comercial / Whats</label>
+                            <input type="text" id="ins-telefone" placeholder="(11) 9..." class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">E-mail Operacional</label>
+                            <input type="email" id="ins-email" placeholder="contato@empresa.com" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-2 mt-2">
+                        <div class="col-span-2">
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Link do Website / URL</label>
+                            <input type="text" id="ins-site" placeholder="www.estacionamento.com.br" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Vagas Disponíveis (X)</label>
+                            <input type="number" id="ins-vagas-x" placeholder="0" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Vagas Negociadas (Y) *</label>
+                            <input type="number" id="ins-vagas-y" required placeholder="Total de Vagas" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-2 mt-2">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Valor por Vaga (R$)</label>
+                            <input type="text" id="ins-mensalista" placeholder="350" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Preço Total Lote (R$)</label>
+                            <input type="text" id="ins-lot-price" placeholder="7000" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Preço Ofertado (R$)</label>
+                            <input type="text" id="ins-oferta-val" placeholder="15000" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Contraproposta (R$)</label>
+                            <input type="text" id="ins-contra-val" placeholder="13500" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+					<p class="text-[10px] font-bold text-purple-600 uppercase mb-2">🧱 Características Físicas e Checklist de Campo</p>
+					<div class="grid grid-cols-2 gap-3 text-xs">
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 mb-0.5">Entrada Veículos</label>
+							<select id="ins-vei" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+								<option>Livre</option>
+								<option>Cancela manual</option>
+								<option>Cancela automática com botão</option>
+								<option>Cancela automática com leitura de placa</option>
+							</select>
+						</div>
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 mb-0.5">Entrada Pedestres</label>
+							<select id="ins-ped" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+								<option>Acesso total</option>
+								<option>Acesso pelo prédio/hotel</option>
+							</select>
+						</div>
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 mb-0.5">Tipo de Cobertura</label>
+							<select id="ins-cob" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+								<option>Não há</option>
+								<option>Garagem / Subterrâneo</option>
+								<option>Telhado</option>
+								<option>Lona</option>
+								<option>Misto</option>
+							</select>
+						</div>
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 mb-0.5">Pavimento / Tipo de Piso</label>
+							<select id="ins-pav" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+								<option>Asfalto/concreto</option>
+								<option>Piso Epóxi</option>
+								<option>Terra batida</option>
+								<option>Grama</option>
+							</select>
+						</div>
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 mb-0.5">Configuração das Vagas</label>
+							<select id="ins-conf" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+								<option>Vagas Livres</option>
+								<option>Fila Indiana</option>
+								<option>45º</option>
+							</select>
+						</div>
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 mb-0.5">Sistemas de Incêndio</label>
+							<select id="ins-inc" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+								<option>Não possui extintores</option>
+								<option>Extintores vencidos</option>
+								<option>Extintores em dia</option>
+								<option>AVCB Ativo</option>
+							</select>
+						</div>
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 mb-0.5">Permite Operação de Lavagem Parceira?</label>
+							<select id="ins-lav" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+								<option>Permite operação completa</option>
+								<option>Permite apenas a seco</option>
+								<option>Não permite</option>
+								<option>Em negociação</option>
+							</select>
+						</div>
+						<div>
+							<label class="block text-[10px] font-bold text-slate-400 mb-0.5">🌐 Estrutura de Sinal / Rede</label>
+							<select id="ins-sinal" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+								<option>Não verificado</option>
+								<option>Subsolo</option>
+								<option>Subsolo com amplificador</option>
+								<option>Subsolo com roteador</option>
+								<option>Garagem</option>
+								<option>Garagem com amplificador</option>
+								<option>Garagem com roteador</option>
+								<option>Prédio</option>
+								<option>Prédio com amplificador</option>
+								<option>Prédio com roteador</option>
+								<option>📡 Starlink / Satélite</option>
+							</select>
+						</div>
+					</div>
+				</div>
+				
+				<div class="mt-2">
+					<label class="block text-[10px] font-bold text-slate-500 mb-1">📢 Enxoval de Marketing Inicial (Ativações)</label>
+					<textarea id="ins-marketing" rows="2" placeholder="Ex: Letreiro luminoso na entrada, 2 totens..." class="w-full border border-slate-300 rounded-lg p-2 text-xs outline-none"></textarea>
+				</div>
+
+                <div class="border-b border-slate-100 pb-3">
+                    <p class="text-[10px] font-bold text-amber-600 uppercase mb-2">⚙️ Parâmetros Adicionais e Ativações</p>
+					<div class="grid grid-cols-2 gap-2 text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200">
+						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="ins-chk-demarcado" class="rounded text-emerald-600"> Demarcado</label>
+						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="ins-chk-cameras" class="rounded text-emerald-600"> Câmeras</label>
+						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="ins-chk-guarita" class="rounded text-emerald-600"> Guarita</label>
+						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="ins-chk-24h" class="rounded text-emerald-600"> Virar 24h</label>
+						<label class="flex items-center gap-2 cursor-pointer col-span-2 border-t pt-2 font-bold text-indigo-700"><input type="checkbox" id="ins-chk-overbooking" class="rounded text-indigo-600"> Permitir Estratégia de Overbooking</label>
+						<label class="flex items-center gap-2 cursor-pointer col-span-2 border-t pt-2 font-bold text-purple-700"><input type="checkbox" id="ins-chk-ev-charger" class="rounded text-purple-600"> 🔌 Possui Carregador Elétrico (EV)</label>
+					</div>
+                </div>
+
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg text-sm transition-all shadow-md mt-2">
+                    🚀 Inserir Oportunidade Completa no Banco
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalEditarCampo" class="modal" onclick="fecharModalSeClicarFora(event)">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center bg-indigo-600 text-white">
+                <h2 id="edit-modal-title" class="text-base font-bold">Editar Parâmetro Comercial</h2>
+                <button onclick="fecharModal('modalEditarCampo')" class="text-white bg-white/10 hover:bg-white/20 w-6 h-6 rounded-full flex items-center justify-center font-bold text-sm">×</button>
+            </div>
+            <div class="p-5 flex flex-col gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Insira o novo valor:</label>
+                    <input type="text" id="edit-modal-input" class="w-full border border-slate-300 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-800">
+                </div>
+                <button onclick="salvarEdicaoModal()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg text-sm shadow-md transition-colors">
+                    💾 Atualizar no Banco
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalEditarInfra" class="modal" onclick="fecharModalSeClicarFora(event)">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center bg-purple-600 text-white">
+                <h2 class="text-base font-bold">🧱 Atualizar Infraestrutura de Campo</h2>
+                <button onclick="fecharModal('modalEditarInfra')" class="text-white bg-white/10 hover:bg-white/20 w-6 h-6 rounded-full flex items-center justify-center font-bold text-sm">×</button>
+            </div>
+            <div class="p-5 flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Entrada Veículos</label>
+                    <select id="inf-vei" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+                        <option value="Livre">Livre</option>
+                        <option value="Cancela manual">Cancela manual</option>
+                        <option value="Cancela automática com botão">Cancela automática com botão</option>
+                        <option value="Cancela automática com leitura de placa">Cancela automática com leitura de placa</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Entrada Pedestres</label>
+                    <select id="inf-ped" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+                        <option value="Acesso total">Acesso total</option>
+                        <option value="Acesso pelo prédio/hotel">Acesso pelo prédio/hotel</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Tipo Cobertura</label>
+                    <select id="inf-cob" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+                        <option value="Não há">Não há</option>
+                        <option value="Garagem / Subterrâneo">Garagem / Subterrâneo</option>
+                        <option value="Telhado">Telhado</option>
+                        <option value="Lona">Lona</option>
+                        <option value="Misto">Misto</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Pavimento</label>
+                    <select id="inf-pav" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+                        <option value="Asfalto/concreto">Asfalto/concreto</option>
+                        <option value="Piso Epóxi">Piso Epóxi</option>
+                        <option value="Terra batida">Terra batida</option>
+                        <option value="Grama">Grama</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Configuração</label>
+                    <select id="inf-conf" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+                        <option value="Vagas Livres">Vagas Livres</option>
+                        <option value="Fila Indiana">Fila Indiana</option>
+                        <option value="45º">45º</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Incêndio</label>
+                    <select id="inf-inc" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+                        <option value="Não possui extintores">Não possui extintores</option>
+                        <option value="Extintores vencidos">Extintores vencidos</option>
+                        <option value="Extintores em dia">Extintores em dia</option>
+                        <option value="AVCB Ativo">AVCB Ativo</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Permite Lavagem Parceira</label>
+                    <select id="inf-lav" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+                        <option value="Permite operação completa">Permite operação completa</option>
+                        <option value="Permite apenas a seco">Permite apenas a seco</option>
+                        <option value="Não permite">Não permite</option>
+                        <option value="Em negociação">Em negociação</option>
+                    </select>
+                </div>
+                <button onclick="salvarInfraAvancadaBanco()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded-lg text-sm shadow-md mt-2">💾 Gravar Especificações</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ----------------------------------------------------
+        // 🔐 CREDENCIAIS DO SUPABASE RESTAURADAS ABSOLUTAMENTE
+        // ----------------------------------------------------
+        var SUPABASE_URL = "https://xqknelzmbsfuznwhlede.supabase.co"; 
+        var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxa25lbHptYnNmdXpud2hsZWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NzM3MzcsImV4cCI6MjA5NTA0OTczN30.BG0VGUXVPoteHgzfFdVa5Ug_PcRzwT4HvxMpX-EAXkQ";
+
+        window.masterLeads = [];
+        var leadSelecionadoAtual = null;
+        var rowSelecionadaAtual = null; // ✅ Referência direta à TR selecionada — elimina querySelectorAll
+
+        var fFavoritos = false;
+        var f24h = false;
+        var fDisponivel = false;
+		var fEvCharger = false;
+		var debounceTimer;
+        var campoSendoEditadoNome = null;
+
+        // ── Virtualização ──────────────────────────────────────────────────
+        // Renderiza apenas as linhas visíveis na janela + uma margem de buffer,
+        // evitando criar/pintar 1000+ nós de uma vez.
+        var VIRT_LINHA_ALTURA = 72;  // altura estimada de cada <tr> em px
+        var VIRT_BUFFER       = 10;  // linhas extras acima e abaixo da janela
+        var virtLeadsAtual    = [];  // array filtrado atual
+        var virtScrollEl      = null;
+
+        function inicializarVirtualizacao() {
+            virtScrollEl = document.querySelector(".overflow-y-auto");
+            if (!virtScrollEl) return;
+            virtScrollEl.addEventListener("scroll", function() {
+                renderizarJanela();
+            }, { passive: true });
+        }
+
+        function renderizarLinhasTabela(leads) {
+            virtLeadsAtual = leads;
+            var tbody = document.getElementById("tabela-corpo-real");
+
+            if (leads.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='6' class='p-8 text-center text-slate-400 italic'>Nenhum POD atende aos critérios combinados.</td></tr>";
+                return;
+            }
+
+            // Garante que os espaçadores existam
+            if (!document.getElementById("virt-spacer-top")) {
+                var st = document.createElement("tr");
+                st.id = "virt-spacer-top";
+                st.innerHTML = "<td colspan='6' style='padding:0;height:0'></td>";
+                tbody.insertBefore(st, tbody.firstChild);
+
+                var sb = document.createElement("tr");
+                sb.id = "virt-spacer-bottom";
+                sb.innerHTML = "<td colspan='6' style='padding:0;height:0'></td>";
+                tbody.appendChild(sb);
+            }
+
+            renderizarJanela();
+        }
+
+        function renderizarJanela() {
+            var tbody = document.getElementById("tabela-corpo-real");
+            var leads = virtLeadsAtual;
+            if (!leads || leads.length === 0) return;
+
+            var scrollTop = virtScrollEl ? virtScrollEl.scrollTop : 0;
+            var altura    = virtScrollEl ? virtScrollEl.clientHeight : 600;
+
+            var primeiraVisivel = Math.max(0, Math.floor(scrollTop / VIRT_LINHA_ALTURA) - VIRT_BUFFER);
+            var ultimaVisivel   = Math.min(leads.length - 1, Math.ceil((scrollTop + altura) / VIRT_LINHA_ALTURA) + VIRT_BUFFER);
+
+            var alturaTop    = primeiraVisivel * VIRT_LINHA_ALTURA;
+            var alturaBottom = (leads.length - 1 - ultimaVisivel) * VIRT_LINHA_ALTURA;
+
+            // Atualiza espaçadores
+            var spacerTop = document.getElementById("virt-spacer-top");
+            var spacerBot = document.getElementById("virt-spacer-bottom");
+            if (spacerTop) spacerTop.firstElementChild.style.height = alturaTop + "px";
+            if (spacerBot) spacerBot.firstElementChild.style.height = Math.max(0, alturaBottom) + "px";
+
+            // Monta só as linhas da janela visível
+            var fragment = document.createDocumentFragment();
+            for (var i = primeiraVisivel; i <= ultimaVisivel; i++) {
+                fragment.appendChild(construirTr(leads[i]));
+            }
+
+            // Remove linhas antigas (mantém apenas os 2 espaçadores)
+            var filhos = Array.from(tbody.childNodes);
+            filhos.forEach(function(el) {
+                if (el.id !== "virt-spacer-top" && el.id !== "virt-spacer-bottom") tbody.removeChild(el);
+            });
+            spacerTop = document.getElementById("virt-spacer-top");
+            tbody.insertBefore(fragment, spacerBot);
+        }
+
+        function construirTr(pod) {
+            var tr = document.createElement("tr");
+            tr.className = "hover:bg-indigo-50/20 transition-colors cursor-pointer select-row target-row";
+
+            var campo24h = pod.operacao_24h !== undefined ? pod.operacao_24h : pod.operacao_24;
+            var is24h    = higienizar24h(campo24h);
+            var isDisp   = higienizarDisponivel(pod.vagas_disponiveis);
+
+            var isSelected = leadSelecionadoAtual && leadSelecionadoAtual.podid === pod.podid;
+            if (isSelected) tr.className += " bg-indigo-50/40 border-l-4 border-indigo-600";
+
+            var latVal = pod.latitude  || -23.5505;
+            var lngVal = pod.longitude || -46.6333;
+            var rotaGoogleUrl = "https://www.google.com/maps/search/?api=1&query=" + latVal + "," + lngVal;
+
+            tr.onclick = function() { registrarCliqueEAtivarLateral(tr, pod); };
+
+            var tag24hHtml  = is24h  ? "<span class='text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold'>⏰ 24h</span>" : "";
+            var tagDispHtml = isDisp
+                ? "<span class='text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold'>🟢 Disponível</span>"
+                : "<span class='text-[9px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold'>🔴 Lotado</span>";
+
+            var origemTipo   = pod.origem_registro === "base_interna" ? "💼 Interno" : "🔍 Lead";
+            var origemClasse = pod.origem_registro === "base_interna" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-600 border-slate-200";
+
+            var nomeContatoFinal = pod.contato_nome || pod.contato || "-";
+            var telefoneFinal    = pod.telefone || pod.tel || pod.celular || "-";
+            var siteFinal        = pod.site || pod.website || pod.url || pod.link || "Sem Website";
+            var totalVagasLimpa  = Math.abs(pod.capacidade_total || pod.vagas_estimadas || 0);
+            var iptuHtml = pod.origem_registro === "base_interna"
+                ? "<span class='text-[8px] bg-indigo-50 text-indigo-600 px-1 py-0.5 rounded font-bold uppercase tracking-wider'>Lote Ativo</span>"
+                : "Est. IPTU: " + (pod.vagas_estimadas || 0);
+
+            tr.innerHTML =
+                "<td class='p-4 text-center text-lg cursor-pointer' onclick='toggleFavoritoServidor(event, " + pod.podid + ", " + pod.favorito + ")'>" +
+                (pod.favorito ? "❤️" : "🤍") + "</td>" +
+                "<td class='p-4'><div class='font-bold text-slate-900 truncate max-w-[240px]'>" + pod.nome_pod + "</div>" +
+                "<div class='text-[10px] text-slate-400 font-bold uppercase tracking-wide'>💼 " + (pod.tipo_pod || pod.tipo_pod_osm || "Particular") + "</div>" +
+                "<div class='text-[10px] text-indigo-500 truncate max-w-[180px] font-medium mt-0.5'>" + siteFinal + "</div>" +
+                "<div class='text-[10px] text-indigo-600 font-bold uppercase selection-star tracking-wide mt-1 " + (isSelected ? "" : "hidden") + "'>⭐ Selecionado</div></td>" +
+                "<td class='p-4'><div class='text-slate-500 font-bold text-xs'>" + (pod.bairro || "Geral") + "</div>" +
+                "<div class='flex flex-wrap gap-1 mt-1'>" + tag24hHtml + " " + tagDispHtml +
+                " <span class='text-[8px] border px-1 rounded font-bold " + origemClasse + "'>" + origemTipo + "</span></div></td>" +
+                "<td class='p-4 font-bold text-indigo-700 text-sm'>" + totalVagasLimpa + " vagas" +
+                "<div class='text-[10px] font-normal text-slate-400 mt-0.5'>" + iptuHtml + "</div></td>" +
+                "<td class='p-4'><div class='text-slate-900 font-semibold text-xs'>" + (pod.valor_mensalista ? "R$ " + pod.valor_mensalista : "Pendente") + "</div>" +
+                "<div class='text-[10px] text-slate-500 truncate max-w-[140px] mt-0.5'>👤 " + nomeContatoFinal + "</div>" +
+                "<div class='text-[10px] text-slate-400 font-bold truncate max-w-[140px]'>📞 " + telefoneFinal + "</div></td>" +
+                "<td class='p-4 text-center text-xl hover:scale-125 transition-transform'><a href='" + rotaGoogleUrl + "' target='_blank' onclick='event.stopPropagation();'>🗺️</a></td>";
+
+            return tr;
+        }
+        // ── Fim Virtualização ──────────────────────────────────────────────
+		
+		// Função para tirar falhas e delays do campo de busca por digitação
+		function filtrarComDebounce() {
+			clearTimeout(debounceTimer);
+			debounceTimer = setTimeout(function() {
+				executarFiltrosLocais();
+			}, 350);
+		}
+
+        // Função auxiliar inteligente para correspondência de opções case-insensitive livre de falhas textuais
+        function setSelectValue(id, value, fallback) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.value = fallback; 
+            var target = String(value || "").trim().toLowerCase();
+            if (!target) return;
+            for (var i = 0; i < el.options.length; i++) {
+                if (el.options[i].value.trim().toLowerCase() === target || el.options[i].text.trim().toLowerCase() === target) {
+                    el.value = el.options[i].value;
+                    break;
+                }
+            }
+        }
+
+        function normalizarTexto(txt) {
+            if(!txt) return "";
+            var s = String(txt).replace(/[\u00A0\s]+/g, " ");
+            s = s.replace(/[-\s]*(sp|sp-sp)$/i, "");
+            s = s.replace(/[-\s]+$/, "");
+            return s.trim().toLowerCase();
+        }
+
+        function higienizar24h(val) {
+            if(!val) return false;
+            var str = String(val).trim().toLowerCase();
+            return str === "yes" || str === "true" || str === "1" || str === "sim";
+        }
+
+        function higienizarSite(val) {
+            if(!val) return false;
+            var str = String(val).trim().toLowerCase();
+            if(str === "" || str === "n/a" || str === "null" || str === "-" || str === "não possui" || str === "nao possui" || str === "não possui site") return false;
+            return str.length > 3; 
+        }
+
+        function higienizarDisponivel(val) {
+            if(val === undefined || val === null) return true;
+            var str = String(val).trim().toLowerCase();
+            return str === "yes" || str === "true" || str === "1" || str === "sim" || str === "" || str === "0";
+        }
+
+        function inicializarApp() {
+            try {
+                window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            } catch (err) {
+                document.getElementById("tabela-corpo-real").innerHTML = "<tr><td colspan='6' class='p-8 text-center text-rose-600 font-bold bg-rose-50 border border-rose-200 rounded-xl'>❌ Erro de Inicialização: " + err.message + "</td></tr>";
+                return;
+            }
+
+            try { inicializarMapaNativoLeaflet(); } catch (mapErr) { console.error("Erro mapa:", mapErr); }
+            inicializarVirtualizacao();
+            puxarTodaABaseDeDados();
+        }
+
+        function inicializarMapaNativoLeaflet() {
+            var mapContainer = document.getElementById("map");
+            if (typeof L !== "undefined") {
+                mapContainer.innerHTML = ""; 
+                window.globalMap = L.map(mapContainer, { zoomControl: true, attributionControl: false }).setView([-23.5505, -46.6333], 12);
+                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(window.globalMap);
+                window.globalMarker = L.marker([-23.5505, -46.6333]).addTo(window.globalMap);
+            }
+        }
+
+        async function puxarTodaABaseDeDados() {
+            try {
+                if(!window.supabaseClient) return;
+                var tbody = document.getElementById("tabela-corpo-real");
+                tbody.innerHTML = "<tr><td colspan='6' class='p-8 text-center text-indigo-600 font-semibold animate-pulse italic'>Sincronizando base master... (<span id='load-progress'>0</span> PODs)</td></tr>";
+
+                var tudo = []; var de = 0; var ate = 999; var temMais = true;
+
+                while(temMais) {
+                    var resultado = await window.supabaseClient.from("pods").select("*").range(de, ate);
+                    if(resultado.error) throw resultado.error;
+
+                    var data = resultado.data;
+                    if(!data || data.length === 0) { 
+                        temMais = false; 
+                    } else {
+                        tudo = tudo.concat(data);
+                        var progressSpan = document.getElementById("load-progress");
+                        if(progressSpan) progressSpan.innerText = tudo.length;
+                        
+                        if(data.length < 1000) temMais = false;
+                        else { de += 1000; ate += 1000; }
+                    }
+                }
+
+                window.masterLeads = tudo;
+                montarFiltroDropdownBairrosBanco();
+                montarSeletorCidadesBanco();
+                executarFiltrosLocais();
+            } catch (err) {
+                document.getElementById("tabela-corpo-real").innerHTML = "<tr><td colspan='6' class='p-8 text-center text-rose-600 font-bold bg-rose-50 border border-rose-200 rounded-xl'>⚠️ Erro: " + (err.message || err) + "</td></tr>";
+            }
+        }
+
+        function montarFiltroDropdownBairrosBanco() {
+            var listaBairros = [];
+            window.masterLeads.forEach(function(item) {
+                if (item.bairro && !listaBairros.includes(item.bairro)) listaBairros.push(item.bairro);
+            });
+            listaBairros.sort();
+
+            var dropdown = document.getElementById("filtro-bairro");
+            dropdown.innerHTML = "<option value='todos'>Bairro: Todos</option>";
+            listaBairros.forEach(function(b) {
+                var opt = document.createElement("option");
+                opt.value = b; opt.innerText = b;
+                dropdown.appendChild(opt);
+            });
+        }
+
+        function montarSeletorCidadesBanco() {
+            var listaCidades = [];
+            window.masterLeads.forEach(function(item) {
+                if (item.cidade) {
+                    var cLimpa = normalizarTexto(item.cidade);
+                    if (cLimpa && !listaCidades.includes(cLimpa)) listaCidades.push(cLimpa);
+                }
+            });
+            listaCidades.sort();
+
+            var seletor = document.getElementById("seletor-cidades");
+            seletor.innerHTML = "<option value='todos'>Todas as Cidades</option>";
+            listaCidades.forEach(function(c) {
+                var opt = document.createElement("option");
+                opt.value = c; 
+                var palavras = c.split(" ");
+                for(var i=0; i<palavras.length; i++) {
+                    palavras[i] = palavras[i].charAt(0).toUpperCase() + palavras[i].slice(1);
+                }
+                opt.innerText = palavras.join(" ") + " - SP";
+                if(c === "são paulo") opt.selected = true;
+                seletor.appendChild(opt);
+            });
+        }
+
+        function executarFiltrosLocais() {
+            if(!window.masterLeads) return;
+
+            var textBusca = document.getElementById("filtro-busca").value.toLowerCase().trim();
+            var capSel    = document.getElementById("filtro-capacidade").value;
+            var statusSel = document.getElementById("filtro-status").value;
+            var cidadeSel = document.getElementById("seletor-cidades").value;
+            var bairroSel = document.getElementById("filtro-bairro").value;
+            var origemSel = document.getElementById("filtro-origem").value;
+
+            // ✅ Pré-calcula fora do loop — evita chamar normalizarTexto 1000x por filtro
+            var cidadeNorm  = cidadeSel  !== "todos" ? normalizarTexto(cidadeSel)  : null;
+            var bairroLower = bairroSel  !== "todos" ? bairroSel.toLowerCase().trim() : null;
+            var statusLower = statusSel  !== "todos" ? statusSel.toLowerCase() : null;
+
+            var filtrados = window.masterLeads.filter(function(pod) {
+                if (fEvCharger && !pod.has_ev_charger) return false;
+				if (pod.is_blacklisted && statusSel !== "Inativo") return false;
+				if (origemSel !== "todos" && String(pod.origem_registro || "prospeccao") !== origemSel) return false;
+                if (cidadeNorm  && normalizarTexto(pod.cidade) !== cidadeNorm) return false;
+                if (bairroLower && String(pod.bairro).toLowerCase().trim() !== bairroLower) return false;
+
+                if (statusLower) {
+                    var sNormal = String(pod.status).toLowerCase().trim();
+                    if (statusSel === "Inativo") {
+                        if (sNormal !== "inativo" && sNormal !== "inativo / excluded") return false;
+                    } else {
+                        if (sNormal !== statusLower) return false;
+                    }
+                }
+
+                var campo24h = pod.operacao_24h !== undefined ? pod.operacao_24h : pod.operacao_24;
+                var is24h    = higienizar24h(campo24h);
+                var isDisp   = higienizarDisponivel(pod.vagas_disponiveis);
+
+                if (fFavoritos && !pod.favorito)  return false;
+                if (f24h      && !is24h)           return false;
+                if (fDisponivel && !isDisp)        return false;
+
+                var v = Math.abs(pod.capacidade_total || pod.vagas_estimadas || 0);
+                if (capSel === "hubs"     && v <= 40)           return false;
+                if (capSel === "grandes"  && (v < 10 || v > 40)) return false;
+                if (capSel === "pequenos" && v >= 10)            return false;
+
+                if (textBusca !== "") {
+                    var n = (pod.nome_pod || "").toLowerCase();
+                    var e = (pod.endereco_completo || "").toLowerCase();
+                    if (!n.includes(textBusca) && !e.includes(textBusca)) return false;
+                }
+
+                return true;
+            });
+
+            atualizarContadoresMetricas(filtrados);
+            renderizarLinhasTabela(filtrados);
+        }
+
+        function atualizarContadoresMetricas(leads) {
+            document.getElementById("cont-total").innerText = leads.length.toLocaleString("pt-BR");
+            
+            var totalVagas = leads.reduce(function(acc, curr) { 
+                return acc + Math.abs(curr.capacidade_total || curr.vagas_estimadas || 0); 
+            }, 0);
+            document.getElementById("cont-vagas").innerText = totalVagas.toLocaleString("pt-BR");
+            
+            var comSite = leads.filter(function(l) { 
+                return higienizarSite(l.site || l.website || l.url || l.link); 
+            }).length;
+            document.getElementById("cont-sites").innerText = comSite.toLocaleString("pt-BR");
+
+            var pipelineAtivo = leads.filter(function(l) { 
+                return l.status === "Em Negociação" || l.status === "Orçando"; 
+            }).length;
+            document.getElementById("cont-ativos").innerText = pipelineAtivo.toLocaleString("pt-BR");
+
+            var fechadosAtivos = leads.filter(function(l) { 
+                return l.status === "Ativo" || l.status === "Visita Agendada"; 
+            }).length;
+            document.getElementById("cont-fechados-top").innerText = fechadosAtivos.toLocaleString("pt-BR");
+        }
+
+
+
+        function registrarCliqueEAtivarLateral(rowElement, pod) {
+            leadSelecionadoAtual = pod;
+            document.getElementById("ficha-placeholder").classList.add("hidden");
+            var painel = document.getElementById("ficha-tecnica-lateral");
+            painel.classList.remove("hidden");
+
+            // ✅ Referência direta — sem querySelectorAll varrendo 1000+ nós
+            if (rowSelecionadaAtual && rowSelecionadaAtual !== rowElement) {
+                rowSelecionadaAtual.classList.remove("bg-indigo-50/40", "border-l-4", "border-indigo-600");
+                var starAnt = rowSelecionadaAtual.querySelector(".selection-star");
+                if (starAnt) starAnt.classList.add("hidden");
+            }
+            rowSelecionadaAtual = rowElement;
+            rowElement.classList.add("bg-indigo-50/40", "border-l-4", "border-indigo-600");
+            var rowStar = rowElement.querySelector(".selection-star");
+            if (rowStar) rowStar.classList.remove("hidden");
+
+            var originBadge = document.getElementById("lbl-origem-badge");
+            if (pod.origem_registro === "base_interna") {
+                originBadge.innerText = "💼 OPERAÇÃO ATIVA";
+                originBadge.className = "text-[9px] bg-emerald-600 text-white px-2 py-0.5 rounded font-bold uppercase tracking-wide";
+            } else {
+                originBadge.innerText = "🔍 PROSPECÇÃO";
+                originBadge.className = "text-[9px] bg-slate-400 text-white px-2 py-0.5 rounded font-bold uppercase tracking-wide";
+            }
+
+            var totalVagasText = Math.abs(pod.capacidade_total || 0) + " vagas";
+            var containerVagas = document.getElementById("p-vagas-dinamico-wrapper");
+            if (pod.origem_registro === "base_interna") {
+                containerVagas.innerHTML = "<div class='bg-slate-50 p-2 rounded border border-slate-100 col-span-2'><p class='text-slate-400 font-bold uppercase'>Capacidade Operacional</p><p class='font-bold text-slate-800 text-xs'>" + totalVagasText + "</p></div>";
+            } else {
+                containerVagas.innerHTML = "<div class='bg-slate-50 p-2 rounded border border-slate-100 col-span-2 relative'><p class='text-slate-400 font-bold uppercase'>Proporção (Disponível/Total)</p><p class='font-bold text-slate-800 text-xs'>" + (pod.vagas_disponiveis || 0) + " / " + (pod.capacidade_total || 0) + " vagas</p><span onclick=\"abrirPopupEdicao('vagas_disponiveis', 'Vagas Disponíveis')\" class='absolute top-1 right-1 cursor-pointer text-slate-400 hover:text-slate-900'>✏️</span></div>";
+            }
+			
+	            document.getElementById("p-titulo").innerText = pod.nome_pod || "-";
+            document.getElementById("p-tipo").innerText = pod.tipo_pod || pod.tipo_pod_osm || "Geral";
+            document.getElementById("p-mensalista").innerText = pod.valor_mensalista ? "R$ " + pod.valor_mensalista : "Não cadastrado";
+            document.getElementById("p-oferta").innerText = pod.preco_ofertado ? "R$ " + pod.preco_ofertado : "Não cadastrado";
+            document.getElementById("p-contra").innerText = pod.contraproposta ? "R$ " + pod.contraproposta : "Não cadastrado";
+            
+            document.getElementById("p-tel").innerText = pod.telefone || pod.tel || pod.celular || "Não possui";
+            document.getElementById("p-site").innerText = pod.site || pod.website || pod.url || pod.link || "Não possui";
+            document.getElementById("p-contato-nome").innerText = pod.contato_nome || pod.contato || "Não possui";
+
+            document.getElementById("lbl-vei").innerText = pod.entrada_veiculos || "Não preenchido";
+            document.getElementById("lbl-ped").innerText = pod.entrada_pedestres || "Não preenchido";
+            document.getElementById("lbl-cob").innerText = pod.tipo_cobertura || "Não preenchido";
+            document.getElementById("lbl-pav").innerText = pod.pavimento || "Não preenchido";
+            document.getElementById("lbl-conf").innerText = pod.configuracao_vagas || "Não preenchido";
+            document.getElementById("lbl-inc").innerText = pod.protecao_incendio || "Não preenchido";
+            document.getElementById("lbl-lav").innerText = pod.operacao_lavagem || "Não preenchido";
+
+            document.getElementById("chk-vagas").checked = pod.check_demarcado || false;
+            document.getElementById("chk-cam").checked = pod.check_cameras || false;
+            document.getElementById("chk-gua").checked = pod.check_guarita || false;
+            document.getElementById("chk-overbooking").checked = pod.check_overbooking || false;
+            
+            var campo24h = pod.operacao_24h !== undefined ? pod.operacao_24h : pod.operacao_24;
+            document.getElementById("chk-24h").checked = higienizar24h(campo24h);
+            
+            document.getElementById("p-status-select").value = pod.status || "Não Contatado";
+            document.getElementById("p-obs").value = pod.observacoes || "";
+
+            if (window.globalMap && pod.latitude && pod.longitude) {
+                var lat = parseFloat(pod.latitude);
+                var lng = parseFloat(pod.longitude);
+                if (window.globalMarker) { window.globalMarker.setLatLng([lat, lng]); } 
+                else { window.globalMarker = L.marker([lat, lng]).addTo(window.globalMap); }
+                window.globalMap.setView([lat, lng], 16);
+            }
+			
+			// Alimenta os campos de localização de rede e marketing
+			document.getElementById("p-local-roteador").value = pod.local_roteador || "";
+			document.getElementById("p-local-starlink").value = pod.local_starlink || "";
+			document.getElementById("p-local-amplificador").value = pod.local_amplificador || "";
+			document.getElementById("p-marketing").value = pod.enxoval_marketing || "";
+			document.getElementById("chk-ev-charger").checked = pod.has_ev_charger || false;
+			atualizarBotaoBlacklistUI(pod.is_blacklisted);
+
+			// 🏷️ Varre as observações e cospe os badges de hashtags na tela automaticamente
+			var hashContainer = document.getElementById("p-hashtags-container");
+			hashContainer.innerHTML = "";
+			if(pod.hashtags) {
+				pod.hashtags.split(" ").forEach(function(tag) {
+					if(tag.trim() !== "") {
+						var span = document.createElement("span");
+						span.className = "text-[9px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider";
+						span.innerText = tag;
+						hashContainer.appendChild(span);
+					}
+				});
+			}
+        }
+
+        function abrirModalEdicaoInfra() {
+            if(!leadSelecionadoAtual) return;
+            try {
+                setSelectValue("inf-vei", leadSelecionadoAtual.entrada_veiculos, "Livre");
+                setSelectValue("inf-ped", leadSelecionadoAtual.entrada_pedestres, "Acesso total");
+                setSelectValue("inf-cob", leadSelecionadoAtual.tipo_cobertura, "Não há");
+                setSelectValue("inf-pav", leadSelecionadoAtual.pavimento, "Asfalto/concreto");
+                setSelectValue("inf-conf", leadSelecionadoAtual.configuracao_vagas, "Vagas Livres");
+                setSelectValue("inf-inc", leadSelecionadoAtual.protecao_incendio, "Não possui extintores");
+                setSelectValue("inf-lav", leadSelecionadoAtual.operacao_lavagem, "Não permite");
+                abrirModal("modalEditarInfra");
+            } catch(e) { console.error("Falha ao abrir modal:", e); }
+        }
+
+        async function salvarInfraAvancadaBanco() {
+            if(!window.supabaseClient || !leadSelecionadoAtual) return;
+            var payload = {
+                entrada_veiculos: document.getElementById("inf-vei").value,
+                entrada_pedestres: document.getElementById("inf-ped").value,
+                tipo_cobertura: document.getElementById("inf-cob").value,
+                pavimento: document.getElementById("inf-pav").value,
+                configuracao_vagas: document.getElementById("inf-conf").value,
+                protecao_incendio: document.getElementById("inf-inc").value,
+                operacao_lavagem: document.getElementById("inf-lav").value
+            };
+            Object.assign(leadSelecionadoAtual, payload);
+            var itemCache = window.masterLeads.find(function(x) { return x.podid === leadSelecionadoAtual.podid; });
+            if(itemCache) Object.assign(itemCache, payload);
+
+            fecharModal("modalEditarInfra");
+            executarFiltrosLocais();
+
+            document.getElementById("lbl-vei").innerText = payload.entrada_veiculos;
+            document.getElementById("lbl-ped").innerText = payload.entrada_pedestres;
+            document.getElementById("lbl-cob").innerText = payload.tipo_cobertura;
+            document.getElementById("lbl-pav").innerText = payload.pavimento;
+            document.getElementById("lbl-conf").innerText = payload.configuracao_vagas;
+            document.getElementById("lbl-inc").innerText = payload.protecao_incendio;
+            document.getElementById("lbl-lav").innerText = payload.operacao_lavagem;
+
+            await window.supabaseClient.from("pods").update(payload).eq("podid", leadSelecionadoAtual.podid);
+        }
+
+        function abrirPopupEdicao(idColuna, labelTexto) {
+            if(!leadSelecionadoAtual) return;
+            campoSendoEditadoNome = idColuna;
+            document.getElementById("edit-modal-title").innerText = "Editar " + labelTexto;
+            document.getElementById("edit-modal-input").value = leadSelecionadoAtual[idColuna] || "";
+            abrirModal("modalEditarCampo");
+        }
+
+        function salvarEdicaoModal() {
+            var novoValor = document.getElementById("edit-modal-input").value.trim();
+            if (campoSendoEditadoNome && leadSelecionadoAtual) {
+                leadSelecionadoAtual[campoSendoEditadoNome] = novoValor;
+                var itemCache = window.masterLeads.find(function(x) { return x.podid === leadSelecionadoAtual.podid; });
+                if(itemCache) itemCache[campoSendoEditadoNome] = novoValor;
+                
+                if(campoSendoEditadoNome === "valor_mensalista") document.getElementById("p-mensalista").innerText = "R$ " + novoValor;
+                if(campoSendoEditadoNome === "preco_ofertado") document.getElementById("p-oferta").innerText = "R$ " + novoValor;
+                if(campoSendoEditadoNome === "contraproposta") document.getElementById("p-contra").innerText = "R$ " + novoValor;
+                if(campoSendoEditadoNome === "telefone") document.getElementById("p-tel").innerText = novoValor;
+                if(campoSendoEditadoNome === "site") document.getElementById("p-site").innerText = novoValor;
+                if(campoSendoEditadoNome === "contato_nome") document.getElementById("p-contato-nome").innerText = novoValor;
+
+                executarFiltrosLocais();
+                fecharModal("modalEditarCampo");
+            }
+        }
+
+		async function salvarAlteracoesFichaLateral() {
+			if(!window.supabaseClient || !leadSelecionadoAtual) return;
+
+			// ⚡ Inteligência Regex: Captura o texto das observações e isola as #hashtags
+			var textoObs = document.getElementById("p-obs").value || "";
+			var tagsEncontradas = textoObs.match(/#\w+/g); 
+			var stringHashtags = tagsEncontradas ? tagsEncontradas.join(" ") : "";
+
+			// Montagem do payload alinhado com as novas colunas do banco
+			var payload = {
+				status: document.getElementById("p-status-select").value,
+				observacoes: textoObs,
+				hashtags: stringHashtags, 
+				has_ev_charger: document.getElementById("chk-ev-charger").checked,
+				local_roteador: document.getElementById("p-local-roteador").value,
+				local_starlink: document.getElementById("p-local-starlink").value,
+				local_amplificador: document.getElementById("p-local-amplificador").value,
+				enxoval_marketing: document.getElementById("p-marketing").value,
+				is_blacklisted: leadSelecionadoAtual.is_blacklisted || false,
+				check_demarcado: document.getElementById("chk-vagas").checked,
+				check_cameras: document.getElementById("chk-cam").checked,
+				check_guarita: document.getElementById("chk-gua").checked,
+				check_virar_24h: document.getElementById("chk-24h").checked,
+				check_overbooking: document.getElementById("chk-overbooking").checked,
+				valor_mensalista: leadSelecionadoAtual.valor_mensalista,
+				preco_ofertado: leadSelecionadoAtual.preco_ofertado,
+				contraproposta: leadSelecionadoAtual.contraproposta,
+				telefone: leadSelecionadoAtual.telefone || leadSelecionadoAtual.tel,
+				site: leadSelecionadoAtual.site || leadSelecionadoAtual.website,
+				contato_nome: leadSelecionadoAtual.contato_nome || leadSelecionadoAtual.contato
+			};
+
+			// Atualiza os dados imediatamente na memória local do app (Cache Otimista)
+			var itemCache = window.masterLeads.find(function(x) { return x.podid === leadSelecionadoAtual.podid; });
+			if(itemCache) Object.assign(itemCache, payload);
+			Object.assign(leadSelecionadoAtual, payload);
+
+			// Força a atualização visual imediata da tabela e dos contadores
+			executarFiltrosLocais();
+			
+			// Dispara a gravação persistente no Supabase
+			var resultado = await window.supabaseClient.from("pods").update(payload).eq("podid", leadSelecionadoAtual.podid);
+			if(resultado.error) alert("Falha ao salvar mudanças remotas!");
+			else alert("✅ Especificações de Infra, Marketing e Dados gravadas com sucesso!");
+		}
+
+        async function toggleFavoritoServidor(event, podId, estadoAtual) {
+            event.stopPropagation(); if(!window.supabaseClient) return;
+            
+            var itemCache = window.masterLeads.find(function(x) { return x.podid === podId; });
+            if(itemCache) itemCache.favorito = !estadoAtual;
+            if(leadSelecionadoAtual && leadSelecionadoAtual.podid === podId) leadSelecionadoAtual.favorito = !estadoAtual;
+            
+            executarFiltrosLocais();
+            await window.supabaseClient.from("pods").update({ favorito: !estadoAtual }).eq("podid", podId);
+        }
+
+        async function salvarNovoPodBanco(event) {
+            event.preventDefault(); if(!window.supabaseClient) return;
+            var payload = {
+                nome_pod: document.getElementById("ins-nome").value,
+                tipo_pod: document.getElementById("ins-tipo").value,
+                cidade: document.getElementById("ins-cidade").value,
+                distrito: document.getElementById("ins-distrito").value,
+                estado: document.getElementById("ins-estado").value,
+                bairro: document.getElementById("ins-bairro").value,
+                vagas_estimadas: parseInt(document.getElementById("ins-vagas-estimadas").value) || 0,
+                vagas_disponiveis: parseInt(document.getElementById("ins-vagas-x").value) || 0,
+                capacidade_total: parseInt(document.getElementById("ins-vagas-y").value) || 0,
+                endereco_completo: document.getElementById("ins-endereco").value,
+                h3_cell_res_8: document.getElementById("ins-h3").value,
+                latitude: document.getElementById("ins-lat").value,
+                longitude: document.getElementById("ins-lng").value,
+                contato_nome: document.getElementById("ins-contato").value,
+                telefone: document.getElementById("ins-telefone").value,
+                email: document.getElementById("ins-email").value,
+                site: document.getElementById("ins-site").value,
+                valor_mensalista: document.getElementById("ins-mensalista").value,
+                parkinglotprice: document.getElementById("ins-lot-price").value,
+                preco_ofertado: document.getElementById("ins-oferta-val").value,
+                contraproposta: document.getElementById("ins-contra-val").value,
+                sinal_amplificador: document.getElementById("ins-sinal").value,
+				ativacoes_marketing: document.getElementById("ins-marketing").value,
+				entrada_veiculos: document.getElementById("ins-vei").value,
+                entrada_pedestres: document.getElementById("ins-ped").value,
+                tipo_cobertura: document.getElementById("ins-cob").value,
+                pavimento: document.getElementById("ins-pav").value,
+                configuracao_vagas: document.getElementById("ins-conf").value,
+                protecao_incendio: document.getElementById("ins-inc").value,
+                operacao_lavagem: document.getElementById("ins-lav").value,
+                check_demarcado: document.getElementById("ins-chk-demarcado").checked,
+                check_cameras: document.getElementById("ins-chk-cameras").checked,
+                check_guarita: document.getElementById("ins-chk-guarita").checked,
+                check_virar_24h: document.getElementById("ins-chk-24h").checked,
+                check_overbooking: document.getElementById("ins-chk-overbooking").checked,
+				has_ev_charger: document.getElementById("ins-chk-ev-charger").checked,
+                origem_registro: "prospeccao",
+                status: "Não Contatado"
+            };
+            var resultado = await window.supabaseClient.from("pods").insert([payload]);
+            if(resultado.error) { alert("Erro de cadastro!"); return; }
+            fecharModal("modalNovoPod"); puxarTodaABaseDeDados();
+            alert("✅ POD gravado com sucesso!");
+        }
+
+        function alternarFiltroBotao(tipo) {
+            if(tipo === "fav") fFavoritos = !fFavoritos;
+            if(tipo === "24h") f24h = !f24h;
+            if(tipo === "disp") fDisponivel = !fDisponivel;
+			if(tipo === "ev") fEvCharger = !fEvCharger;
+
+            var bFav = document.getElementById("btn-filtro-fav");
+            if(fFavoritos) bFav.classList.replace("bg-white", "bg-indigo-600"), bFav.classList.replace("text-slate-600", "text-white"), document.getElementById("icon-filter-fav").innerText = "❤️";
+            else bFav.classList.replace("bg-indigo-600", "bg-white"), bFav.classList.replace("text-white", "text-slate-600"), document.getElementById("icon-filter-fav").innerText = "🤍";
+
+            var b24 = document.getElementById("btn-filtro-24h");
+            if(f24h) b24.classList.replace("bg-white", "bg-indigo-600"), b24.classList.replace("text-slate-600", "text-white");
+            else b24.classList.replace("bg-indigo-600", "bg-white"), b24.classList.replace("text-white", "text-slate-600");
+
+            var bDisp = document.getElementById("btn-filtro-disp");
+            if(fDisponivel) bDisp.classList.replace("bg-white", "bg-indigo-600"), bDisp.classList.replace("text-slate-600", "text-white"), document.getElementById("icon-filter-disp").innerText = "🟢";
+            else bDisp.classList.replace("bg-indigo-600", "bg-white"), bDisp.classList.replace("text-white", "text-slate-600"), document.getElementById("icon-filter-disp").innerText = "⚪";
+            
+            var bEv = document.getElementById("btn-filtro-ev");
+			if(bEv) {
+				if(fEvCharger) {
+					bEv.classList.replace("bg-white", "bg-indigo-600");
+					bEv.classList.replace("text-slate-600", "text-white");
+					document.getElementById("icon-filter-ev").innerText = "🟢";
+				} else {
+					bEv.classList.replace("bg-indigo-600", "bg-white");
+					bEv.classList.replace("text-white", "text-slate-600");
+					document.getElementById("icon-filter-ev").innerText = "⚪";
+				}
+			}
+			
+            executarFiltrosLocais();
+        }
+
+        function verificarLinkFotosCadastro() {
+            var val = document.getElementById("ins-fotos").value;
+            document.getElementById("drive-box").className = val === "Sim" ? "block" : "hidden";
+        }
+
+        function carregarDadosKanban() {
+            if(!window.masterLeads) return;
+            var limparContainer = function(id) { document.getElementById(id).innerHTML = ""; };
+            ["k-col-frio", "k-col-t1", "k-col-orc", "k-col-neg", "k-col-fechado"].forEach(limparContainer);
+
+            var cFrio = 0; var cT1 = 0; var cOrc = 0; var cNeg = 0; var cFec = 0; var cIna = 0;
+
+            window.masterLeads.forEach(function(pod) {
+                var s = String(pod.status).trim();
+                var sUpper = s.toUpperCase();
+                
+                if(sUpper === "INACTIVE" || sUpper === "INATIVO" || sUpper === "EXCLUDED" || sUpper === "INATIVO / EXCLUDED") {
+                    cIna++;
+                    return; 
+                }
+
+                var card = document.createElement("div");
+                card.className = "bg-white p-3 rounded-lg shadow-sm border border-slate-200 kanban-card flex flex-col gap-1";
+                card.id = "k-card-" + pod.podid;
+                card.setAttribute("draggable", "true");
+                card.setAttribute("ondragstart", "handleDragStart(event, " + pod.podid + ")");
+
+                card.innerHTML = "\
+                    <p class='font-bold text-xs text-slate-800'>" + pod.nome_pod + "</p>\
+                    <p class='text-[9px] text-slate-400 font-bold'>" + (pod.bairro || "Sem Bairro") + " • Vagas: " + (pod.capacidade_total || 0) + "</p>\
+                    <div class='flex justify-between items-center mt-1 border-t border-slate-50 pt-1.5'>\
+                        <span class='text-[8px] bg-slate-100 text-slate-600 px-1 rounded font-bold uppercase'>" + (pod.tipo_pod || "Particular") + "</span>\
+                        <span class='text-[9px] font-bold text-indigo-600'>" + (pod.favorito ? "❤️" : "") + "</span>\
+                    </div>\
+                ";
+
+                if(s === "Não Contatado" || !pod.status) { document.getElementById("k-col-frio").appendChild(card); cFrio++; }
+                else if(s === "Tentativa 1") { document.getElementById("k-col-t1").appendChild(card); cT1++; }
+                else if(s === "Orçando") { document.getElementById("k-col-orc").appendChild(card); cOrc++; }
+                else if(s === "Em Negociação") { document.getElementById("k-col-neg").appendChild(card); cNeg++; }
+                else if(s === "Ativo" || s === "Visita Agendada") { document.getElementById("k-col-fechado").appendChild(card); cFec++; }
+            });
+
+            document.getElementById("k-count-frio").innerText = "(" + cFrio + ")";
+            document.getElementById("k-count-t1").innerText = "(" + cT1 + ")";
+            document.getElementById("k-count-orc").innerText = "(" + cOrc + ")";
+            document.getElementById("k-count-neg").innerText = "(" + cNeg + ")";
+            document.getElementById("k-count-fechado").innerText = "(" + cFec + ")";
+
+            var total = window.masterLeads.length || 1;
+            document.getElementById("f-total").innerText = total;
+            document.getElementById("f-t1").innerText = cT1 + " (" + Math.round((cT1/total)*100) + "%)";
+            document.getElementById("f-orc").innerText = cOrc + " (" + Math.round((cOrc/total)*100) + "%)";
+            document.getElementById("f-neg").innerText = cNeg + " (" + Math.round((cNeg/total)*100) + "%)";
+            document.getElementById("f-fec").innerText = cFec + " (" + Math.round((cFec/total)*100) + "%)";
+            document.getElementById("f-ina").innerText = cIna + " (" + Math.round((cIna/total)*100) + "%)";
+
+            document.getElementById("f-bar-t1").style.width = ((cT1/total)*100) + "%";
+            document.getElementById("f-bar-orc").style.width = ((cOrc/total)*100) + "%";
+            document.getElementById("f-bar-neg").style.width = ((cNeg/total)*100) + "%";
+            document.getElementById("f-bar-fec").style.width = ((cFec/total)*100) + "%";
+            document.getElementById("f-bar-ina").style.width = ((cIna/total)*100) + "%";
+        }
+
+        function handleDragStart(e, id) { e.dataTransfer.setData("text/plain", id); }
+        function allowDrop(e) { e.preventDefault(); }
+
+        async function handleDropCard(e, novoStatus) {
+            e.preventDefault(); if(!window.supabaseClient) return;
+            var targetId = parseInt(e.dataTransfer.getData("text/plain")); if(!targetId) return;
+
+            var itemCache = window.masterLeads.find(function(x) { return x.podid === targetId; });
+            if(itemCache) itemCache.status = novoStatus;
+            if(leadSelecionadoAtual && leadSelecionadoAtual.podid === targetId) {
+                leadSelecionadoAtual.status = novoStatus;
+                document.getElementById("p-status-select").value = novoStatus;
+            }
+
+            carregarDadosKanban(); executarFiltrosLocais();
+            await window.supabaseClient.from("pods").update({ status: novoStatus }).eq("podid", targetId);
+        }
+
+        function abrirModal(id) { document.getElementById(id).classList.add("active"); }
+        function fecharModal(id) { document.getElementById(id).classList.remove("active"); }
+        function fecharModalSeClicarFora(e) { if(e.target.classList.contains("modal")) e.target.classList.remove("active"); }
+        
+		async function toggleBlacklistAtual() {
+			if(!leadSelecionadoAtual || !window.supabaseClient) return;
+			
+			// Inversão lógica otimista
+			leadSelecionadoAtual.is_blacklisted = !leadSelecionadoAtual.is_blacklisted;
+			
+			// Regra operacional: Se foi banido, altera preventivamente o status para Inativo
+			if(leadSelecionadoAtual.is_blacklisted) {
+				leadSelecionadoAtual.status = "Inativo";
+				document.getElementById("p-status-select").value = "Inativo";
+			}
+			
+			// Atualiza o cache master local em tempo de clique
+			var itemCache = window.masterLeads.find(function(x) { return x.podid === leadSelecionadoAtual.podid; });
+			if(itemCache) {
+				itemCache.is_blacklisted = leadSelecionadoAtual.is_blacklisted;
+				if(leadSelecionadoAtual.is_blacklisted) itemCache.status = "Inativo";
+			}
+			
+			// Executa a re-filtragem instantânea e muda o botão
+			atualizarBotaoBlacklistUI(leadSelecionadoAtual.is_blacklisted);
+			executarFiltrosLocais();
+			
+			// Sincroniza em background com o Supabase
+			await window.supabaseClient.from("pods").update({ 
+				is_blacklisted: leadSelecionadoAtual.is_blacklisted,
+				status: leadSelecionadoAtual.is_blacklisted ? "Inativo" : leadSelecionadoAtual.status
+			}).eq("podid", leadSelecionadoAtual.podid);
+		}
+
+		function atualizarBotaoBlacklistUI(isBlacklisted) {
+			var btn = document.getElementById("btn-blacklist-lateral");
+			if(!btn) return;
+			if(isBlacklisted) {
+				btn.innerText = "💥 Reativar e Desbanir Estacionamento";
+				btn.className = "w-full text-white font-bold py-2.5 rounded-lg text-xs transition-all shadow-md mt-1 bg-emerald-600 hover:bg-emerald-700 transition-colors";
+			} else {
+				btn.innerText = "🚫 Banir do CRM (Blacklist)";
+				btn.className = "w-full text-white font-bold py-2.5 rounded-lg text-xs transition-all shadow-md mt-1 bg-rose-600 hover:bg-rose-700 transition-colors";
+			}
+		}
+				
+        inicializarApp();
+    </script>
+</body>
+</html>
