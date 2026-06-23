@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vistoria de Campo — PODs Ativos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        body { overscroll-behavior: none; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.85); z-index: 9999; align-items: flex-end; justify-content: center; padding: 0; }
+        .modal.active { display: flex; }
+        .modal-sheet { border-radius: 20px 20px 0 0; max-height: 92vh; overflow-y: auto; width: 100%; background: #fff; }
+        .foto-slot { border: 2px dashed #cbd5e1; border-radius: 12px; background: #f8fafc; min-height: 80px; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; }
+        .foto-slot.preenchida { border-color: #10b981; background: #ecfdf5; }
+        .foto-slot.preenchida-multipla { border-color: #6366f1; background: #eef2ff; }
+        .foto-slot img { width: 100%; height: 80px; object-fit: cover; border-radius: 10px; }
+        .foto-slot .foto-label { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.55); color: #fff; font-size: 10px; font-weight: 700; text-align: center; padding: 3px 6px; }
+        .foto-slot .remover-foto { position: absolute; top: 4px; right: 4px; background: rgba(239,68,68,0.85); color: white; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; display: flex; align-items: center; justify-content: center; font-weight: 900; cursor: pointer; z-index: 10; }
+        .foto-multi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .foto-mini { position: relative; border-radius: 8px; overflow: hidden; height: 60px; }
+        .foto-mini img { width: 100%; height: 100%; object-fit: cover; }
+        .foto-mini .rm { position: absolute; top: 2px; right: 2px; background: rgba(239,68,68,0.85); color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .add-mais { border: 2px dashed #6366f1; border-radius: 8px; height: 60px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #6366f1; font-size: 22px; }
+        .pod-card { background: white; border-radius: 14px; border: 1px solid #e2e8f0; padding: 14px 16px; cursor: pointer; transition: all 0.15s; active:scale-98; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        .pod-card:active { transform: scale(0.98); background: #f0f4ff; }
+        .pod-card.revisado { opacity: 0.45; background: #f8fafc; }
+        .spinner { width: 32px; height: 32px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .btn-primary { background: #4f46e5; color: white; font-weight: 700; border-radius: 12px; padding: 14px; font-size: 15px; width: 100%; transition: background 0.2s; cursor: pointer; border: none; }
+        .btn-primary:active { background: #3730a3; }
+        .btn-success { background: #059669; color: white; font-weight: 700; border-radius: 12px; padding: 14px; font-size: 15px; width: 100%; transition: background 0.2s; cursor: pointer; border: none; }
+        .btn-success:active { background: #047857; }
+        .select-field { width: 100%; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; font-size: 14px; background: white; outline: none; -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 32px; }
+        .toggle-wrap { display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; }
+        .toggle { position: relative; width: 44px; height: 26px; flex-shrink: 0; }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; inset: 0; background: #cbd5e1; border-radius: 26px; transition: 0.3s; }
+        .slider:before { content: ""; position: absolute; height: 20px; width: 20px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        input:checked + .slider { background: #10b981; }
+        input:checked + .slider:before { transform: translateX(18px); }
+        .progress-bar { height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #10b981); border-radius: 99px; transition: width 0.4s; }
+        .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 22px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 99999; white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,0.3); opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .toast.show { opacity: 1; }
+        .badge-bairro { display: inline-block; background: #ede9fe; color: #7c3aed; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+        input[type="file"] { display: none; }
+        .foto-upload-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 12px 0; }
+        .confirmacao-overlay { position: fixed; inset: 0; background: rgba(5,150,105,0.15); z-index: 99998; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .confirmacao-box { background: white; border-radius: 20px; padding: 28px 24px; max-width: 320px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+        .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; margin-bottom: 8px; margin-top: 16px; }
+        .input-text { width: 100%; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; font-size: 14px; background: white; outline: none; }
+        .input-text:focus { border-color: #6366f1; }
+        #modal-map { height: 160px; border-radius: 12px; z-index: 1; width: 100%; }
+        .btn-rota { display: flex; align-items: center; justify-content: center; gap: 8px; background: #0f172a; color: white; font-weight: 700; border-radius: 12px; padding: 11px; font-size: 14px; width: 100%; text-decoration: none; margin-top: 8px; transition: background 0.2s; }
+        .btn-rota:active { background: #1e293b; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen font-sans">
+
+    <!-- HEADER -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 px-4 py-3">
+        <div class="flex items-center justify-between max-w-lg mx-auto">
+            <div>
+                <h1 class="text-base font-bold text-slate-900 flex items-center gap-2">🔍 Vistoria de Campo</h1>
+                <p class="text-[11px] text-slate-400 font-medium">PODs Ativos — Base Interna</p>
+            </div>
+            <div id="header-counter" class="text-right hidden">
+                <p id="hdr-revisados" class="text-[11px] font-bold text-emerald-600">0 revisados</p>
+                <p id="hdr-pendentes" class="text-[11px] text-slate-400">0 pendentes</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- BARRA DE FILTROS -->
+    <div class="bg-white border-b border-slate-100 px-4 py-3 sticky top-[57px] z-40">
+        <div class="max-w-lg mx-auto flex gap-2">
+            <div class="relative flex-1">
+                <span class="absolute inset-y-0 left-3 flex items-center text-slate-400 text-sm">🔍</span>
+                <input type="text" id="filtro-busca" oninput="filtrarDebounce()" placeholder="nome, rua ou endereço..."
+                    class="w-full border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none bg-slate-50">
+            </div>
+            <select id="filtro-bairro" onchange="aplicarFiltros()" class="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white text-slate-700 outline-none max-w-[130px]">
+                <option value="todos">Bairro: Todos</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- LISTA DE PODs -->
+    <main class="max-w-lg mx-auto px-4 py-4 pb-24" id="lista-pods">
+        <div class="flex flex-col items-center gap-3 py-16">
+            <div class="spinner"></div>
+            <p class="text-sm text-slate-400 font-medium">Carregando PODs ativos...</p>
+        </div>
+    </main>
+
+    <!-- MODAL DE VISTORIA (bottom sheet) -->
+    <div id="modalVistoria" class="modal" onclick="fecharModalSeClicarFora(event)">
+        <div class="modal-sheet" id="vistoria-sheet">
+            <!-- Handle -->
+            <div class="flex justify-center pt-3 pb-1">
+                <div class="w-10 h-1 bg-slate-200 rounded-full"></div>
+            </div>
+
+            <!-- Header do modal -->
+            <div class="px-5 pt-2 pb-3 border-b border-slate-100">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <span id="m-tipo" class="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-bold uppercase tracking-wide">POD</span>
+                        <h2 id="m-nome" class="text-lg font-bold text-slate-900 mt-1 leading-tight">-</h2>
+                        <p id="m-endereco" class="text-xs text-slate-500 mt-0.5">-</p>
+                    </div>
+                    <button onclick="fecharModal()" class="bg-slate-100 text-slate-500 w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0 mt-1">×</button>
+                </div>
+
+                <!-- Contato (se houver) -->
+                <div id="m-contato-wrap" class="hidden mt-3 flex gap-3">
+                    <div class="bg-slate-50 rounded-xl flex-1 px-3 py-2 border border-slate-100">
+                        <p class="text-[9px] font-bold text-slate-400 uppercase">Contato</p>
+                        <p id="m-contato" class="text-xs font-semibold text-slate-700">-</p>
+                    </div>
+                    <a id="m-tel-link" href="#" class="bg-emerald-50 rounded-xl flex-1 px-3 py-2 border border-emerald-100 flex items-center gap-1.5">
+                        <span class="text-base">📞</span>
+                        <div>
+                            <p class="text-[9px] font-bold text-emerald-600 uppercase">Telefone</p>
+                            <p id="m-tel" class="text-xs font-semibold text-emerald-700">-</p>
+                        </div>
+                    </a>
+                </div>
+
+                <!-- Mapa + Botão de Rota -->
+                <div class="mt-3">
+                    <div id="modal-map"></div>
+                    <a id="btn-rota" href="#" target="_blank" class="btn-rota">
+                        🗺️ Traçar rota até este POD
+                    </a>
+                </div>
+
+                <!-- Barra de progresso do checklist -->
+                <div class="mt-3">
+                    <div class="flex justify-between items-center mb-1">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase">Progresso do Checklist</p>
+                        <p id="progresso-txt" class="text-[10px] font-bold text-indigo-600">0 / 7 campos</p>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill" style="width:0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Corpo do formulário -->
+            <div class="px-5 py-4 flex flex-col gap-2" id="form-checklist">
+
+                <!-- 1. Cobertura -->
+                <p class="section-label">🏗️ Infraestrutura Física</p>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Tipo de Cobertura</label>
+                    <select id="chk-cobertura" class="select-field" onchange="atualizarProgresso()">
+                        <option value="">— Selecione —</option>
+                        <option value="Não há">Não há cobertura</option>
+                        <option value="Garagem / Subterrâneo">Garagem / Subterrâneo</option>
+                        <option value="Telhado">Telhado</option>
+                        <option value="Lona">Lona</option>
+                        <option value="Misto">Misto</option>
+                    </select>
+                </div>
+
+                <!-- 2. Pavimento -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Tipo de Pavimento</label>
+                    <select id="chk-pavimento" class="select-field" onchange="atualizarProgresso()">
+                        <option value="">— Selecione —</option>
+                        <option value="Asfalto/concreto">Asfalto / Concreto</option>
+                        <option value="Piso Epóxi">Piso Epóxi</option>
+                        <option value="Terra batida">Terra batida</option>
+                        <option value="Grama">Grama</option>
+                    </select>
+                </div>
+
+                <!-- 3. Incêndio -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">🔥 Proteção contra Incêndio</label>
+                    <select id="chk-incendio" class="select-field" onchange="atualizarProgresso()">
+                        <option value="">— Selecione —</option>
+                        <option value="Não possui extintores">Não possui extintores</option>
+                        <option value="Extintores vencidos">Extintores vencidos</option>
+                        <option value="Extintores em dia">Extintores em dia</option>
+                        <option value="AVCB Ativo">AVCB Ativo</option>
+                    </select>
+                </div>
+
+                <p class="section-label">⚙️ Equipamentos</p>
+
+                <!-- 4. Câmeras -->
+                <div class="toggle-wrap">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-700">📷 Câmera de Segurança</p>
+                        <p class="text-[11px] text-slate-400">Possui câmeras instaladas?</p>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="chk-cameras" onchange="atualizarProgresso()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- 5. EV -->
+                <div class="toggle-wrap">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-700">🔌 Carregador Elétrico (EV)</p>
+                        <p class="text-[11px] text-slate-400">Possui carregador para veículos elétricos?</p>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="chk-ev" onchange="atualizarProgresso()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <p class="section-label">🌐 Rede e Conectividade</p>
+
+                <!-- 6. Rede -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Estrutura de Sinal / Rede</label>
+                    <div class="relative">
+                        <select id="chk-sinal" class="select-field" onchange="atualizarProgresso()">
+                            <option value="">— Selecione —</option>
+                            <option value="Não verificado">Não verificado</option>
+                            <option value="Subsolo">Subsolo sem equipamento</option>
+                            <option value="Subsolo com amplificador">Subsolo com amplificador</option>
+                            <option value="Subsolo com roteador">Subsolo com roteador</option>
+                            <option value="Garagem">Garagem sem equipamento</option>
+                            <option value="Garagem com amplificador">Garagem com amplificador</option>
+                            <option value="Garagem com roteador">Garagem com roteador</option>
+                            <option value="Prédio">Prédio sem equipamento</option>
+                            <option value="Prédio com amplificador">Prédio com amplificador</option>
+                            <option value="Prédio com roteador">Prédio com roteador</option>
+                            <option value="📡 Starlink / Satélite">📡 Starlink / Satélite</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">📍 Localização do Roteador Principal</label>
+                    <input type="text" id="chk-roteador" class="input-text" placeholder="Ex: Guarita principal / Subsolo - Vaga 10" oninput="atualizarProgresso()">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">📍 Localização da Starlink</label>
+                    <input type="text" id="chk-starlink" class="input-text" placeholder="Ex: Cobertura / Não possui">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">📍 Localização do Amplificador / Repetidor</label>
+                    <input type="text" id="chk-amplificador" class="input-text" placeholder="Ex: Subsolo G2 / Não possui">
+                </div>
+
+                <p class="section-label">📸 Fotos da Vistoria (5 obrigatórias)</p>
+
+                <!-- FOTO 1: Fachada -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">1. Fachada do estacionamento</label>
+                    <div class="foto-slot" id="slot-fachada" onclick="ativarUpload('fachada')">
+                        <input type="file" id="file-fachada" accept="image/*" capture="environment" onchange="processarFoto('fachada', false)">
+                        <div class="foto-upload-btn" id="btn-fachada">
+                            <span class="text-2xl">📷</span>
+                            <span class="text-xs font-semibold text-slate-400">Toque para fotografar</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FOTO 2: Entrada -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">2. Entrada do estacionamento</label>
+                    <div class="foto-slot" id="slot-entrada" onclick="ativarUpload('entrada')">
+                        <input type="file" id="file-entrada" accept="image/*" capture="environment" onchange="processarFoto('entrada', false)">
+                        <div class="foto-upload-btn" id="btn-entrada">
+                            <span class="text-2xl">📷</span>
+                            <span class="text-xs font-semibold text-slate-400">Toque para fotografar</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FOTO 3: Entrada para dentro (múltiplas) -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">3. Da entrada para dentro do pátio <span class="text-indigo-500">(aceita mais de 1)</span></label>
+                    <input type="file" id="file-patio-frente" accept="image/*" capture="environment" multiple onchange="processarFotoMultipla('patio-frente')">
+                    <div id="slot-patio-frente" class="foto-slot" onclick="document.getElementById('file-patio-frente').click()">
+                        <div class="foto-upload-btn" id="btn-patio-frente">
+                            <span class="text-2xl">📷</span>
+                            <span class="text-xs font-semibold text-slate-400">Toque para fotografar</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FOTO 4: Fundo para frente (múltiplas) -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">4. Do fundo do pátio para a frente <span class="text-indigo-500">(aceita mais de 1)</span></label>
+                    <input type="file" id="file-patio-fundo" accept="image/*" capture="environment" multiple onchange="processarFotoMultipla('patio-fundo')">
+                    <div id="slot-patio-fundo" class="foto-slot" onclick="document.getElementById('file-patio-fundo').click()">
+                        <div class="foto-upload-btn" id="btn-patio-fundo">
+                            <span class="text-2xl">📷</span>
+                            <span class="text-xs font-semibold text-slate-400">Toque para fotografar</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FOTO 5: Extintores (múltiplas) -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">5. Extintores de incêndio e validade <span class="text-indigo-500">(aceita mais de 1)</span></label>
+                    <input type="file" id="file-extintores" accept="image/*" capture="environment" multiple onchange="processarFotoMultipla('extintores')">
+                    <div id="slot-extintores" class="foto-slot" onclick="document.getElementById('file-extintores').click()">
+                        <div class="foto-upload-btn" id="btn-extintores">
+                            <span class="text-2xl">📷</span>
+                            <span class="text-xs font-semibold text-slate-400">Toque para fotografar</span>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="section-label">💬 Observações (opcional)</p>
+                <textarea id="chk-obs" rows="3" placeholder="Alguma observação relevante sobre esta vistoria..." class="input-text resize-none"></textarea>
+
+                <!-- Botão salvar -->
+                <div class="mt-4 pb-2">
+                    <button onclick="salvarVistoria()" class="btn-primary" id="btn-salvar">
+                        💾 Salvar Vistoria
+                    </button>
+                </div>
+
+                <!-- Botão confirmar revisão (aparece após salvar) -->
+                <div id="btn-confirmar-wrap" class="hidden pb-6">
+                    <button onclick="confirmarRevisao()" class="btn-success">
+                        ✅ Confirmar — Vistoria Concluída
+                    </button>
+                    <p class="text-center text-[11px] text-slate-400 mt-2">Ao confirmar, este POD sairá da lista de pendentes.</p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // ─── CREDENCIAIS ───────────────────────────────────────────────────────────
+        var SUPABASE_URL  = "https://xqknelzmbsfuznwhlede.supabase.co";
+        var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxa25lbHptYnNmdXpud2hsZWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NzM3MzcsImV4cCI6MjA5NTA0OTczN30.BG0VGUXVPoteHgzfFdVa5Ug_PcRzwT4HvxMpX-EAXkQ";
+        var BUCKET_NAME   = "vistorias";
+
+        // ─── ESTADO ────────────────────────────────────────────────────────────────
+        var supabase;
+        var masterPods    = [];
+        var podAtual      = null;
+        var debounceTimer = null;
+        var fotosArmazenadas = {};
+        var revisadosLocal = JSON.parse(localStorage.getItem("pods_revisados") || "[]");
+        var modalMap      = null;
+        var modalMarker   = null;
+
+        // ─── INIT ──────────────────────────────────────────────────────────────────
+        async function init() {
+            try {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                await carregarPods();
+            } catch(e) {
+                document.getElementById("lista-pods").innerHTML =
+                    "<div class='bg-rose-50 border border-rose-200 rounded-xl p-6 text-center text-rose-600 font-bold text-sm'>❌ Erro de conexão: " + e.message + "</div>";
+            }
+        }
+
+        async function carregarPods() {
+            var tudo = []; var de = 0; var ate = 999; var temMais = true;
+            while (temMais) {
+                var res = await supabase.from("pods").select("*")
+                    .eq("origem_registro", "base_interna")
+                    .eq("status", "Ativo")
+                    .range(de, ate);
+                if (res.error) throw res.error;
+                if (!res.data || res.data.length === 0) { temMais = false; }
+                else {
+                    tudo = tudo.concat(res.data);
+                    if (res.data.length < 1000) temMais = false;
+                    else { de += 1000; ate += 1000; }
+                }
+            }
+            masterPods = tudo;
+            montarDropdownBairros();
+            aplicarFiltros();
+            atualizarContadorHeader();
+        }
+
+        // ─── FILTROS ───────────────────────────────────────────────────────────────
+        function filtrarDebounce() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(aplicarFiltros, 280);
+        }
+
+        function montarDropdownBairros() {
+            var bairros = [];
+            masterPods.forEach(function(p) { if (p.bairro && !bairros.includes(p.bairro)) bairros.push(p.bairro); });
+            bairros.sort();
+            var sel = document.getElementById("filtro-bairro");
+            sel.innerHTML = "<option value='todos'>Bairro: Todos</option>";
+            bairros.forEach(function(b) {
+                var o = document.createElement("option"); o.value = b; o.innerText = b; sel.appendChild(o);
+            });
+        }
+
+        function aplicarFiltros() {
+            var busca  = (document.getElementById("filtro-busca").value || "").toLowerCase().trim();
+            var bairro = document.getElementById("filtro-bairro").value;
+
+            var lista = masterPods.filter(function(p) {
+                if (bairro !== "todos" && p.bairro !== bairro) return false;
+                if (busca) {
+                    var n = (p.nome_pod || "").toLowerCase();
+                    var e = (p.endereco_completo || "").toLowerCase();
+                    if (!n.includes(busca) && !e.includes(busca)) return false;
+                }
+                return true;
+            });
+
+            renderizarLista(lista);
+        }
+
+        function renderizarLista(pods) {
+            var container = document.getElementById("lista-pods");
+            if (pods.length === 0) {
+                container.innerHTML = "<div class='text-center py-16 text-slate-400'><p class='text-4xl mb-3'>🔍</p><p class='font-semibold'>Nenhum POD encontrado</p></div>";
+                return;
+            }
+
+            // Separar pendentes e revisados
+            var pendentes  = pods.filter(function(p) { return !revisadosLocal.includes(p.podid); });
+            var revisados  = pods.filter(function(p) { return revisadosLocal.includes(p.podid); });
+
+            var html = "";
+
+            if (pendentes.length > 0) {
+                html += "<p class='text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-1'>🔴 Pendentes (" + pendentes.length + ")</p>";
+                pendentes.forEach(function(p) { html += buildCard(p, false); });
+            }
+
+            if (revisados.length > 0) {
+                html += "<p class='text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-5 px-1'>✅ Já revisados (" + revisados.length + ")</p>";
+                revisados.forEach(function(p) { html += buildCard(p, true); });
+            }
+
+            container.innerHTML = html;
+        }
+
+        function buildCard(p, revisado) {
+            var bairroHtml = p.bairro ? "<span class='badge-bairro'>" + p.bairro + "</span>" : "";
+            var vagas = Math.abs(p.capacidade_total || p.vagas_estimadas || 0);
+            var revisadoClass = revisado ? " revisado" : "";
+            var revisadoBadge = revisado ? "<span class='text-[10px] text-emerald-600 font-bold'>✅ Revisado</span>" : "<span class='text-[10px] text-slate-400'>Toque para abrir →</span>";
+            return "<div class='pod-card" + revisadoClass + " mb-2' onclick='abrirPod(" + p.podid + ")'>" +
+                "<div class='flex justify-between items-start gap-2'>" +
+                    "<div class='flex-1 min-w-0'>" +
+                        "<p class='font-bold text-slate-900 text-sm leading-tight truncate'>" + (p.nome_pod || "POD #" + p.podid) + "</p>" +
+                        "<p class='text-[11px] text-slate-400 mt-0.5 truncate'>" + (p.endereco_completo || p.bairro || "-") + "</p>" +
+                    "</div>" +
+                    "<div class='text-right flex-shrink-0'>" +
+                        "<p class='text-xs font-bold text-indigo-600'>" + vagas + " vagas</p>" +
+                    "</div>" +
+                "</div>" +
+                "<div class='flex items-center justify-between mt-2'>" +
+                    bairroHtml +
+                    revisadoBadge +
+                "</div>" +
+            "</div>";
+        }
+
+        function atualizarContadorHeader() {
+            var revisados = masterPods.filter(function(p) { return revisadosLocal.includes(p.podid); }).length;
+            var pendentes = masterPods.length - revisados;
+            document.getElementById("header-counter").classList.remove("hidden");
+            document.getElementById("hdr-revisados").innerText = revisados + " revisados";
+            document.getElementById("hdr-pendentes").innerText = pendentes + " pendentes";
+        }
+
+        // ─── ABRIR POD ─────────────────────────────────────────────────────────────
+        function abrirPod(podid) {
+            podAtual = masterPods.find(function(p) { return p.podid === podid; });
+            if (!podAtual) return;
+
+            // Preenche header do modal
+            document.getElementById("m-nome").innerText = podAtual.nome_pod || "POD #" + podAtual.podid;
+            document.getElementById("m-tipo").innerText = podAtual.tipo_pod || "Estacionamento";
+            document.getElementById("m-endereco").innerText = podAtual.endereco_completo || podAtual.bairro || "-";
+
+            var contato = podAtual.contato_nome || podAtual.contato;
+            var tel     = podAtual.telefone || podAtual.tel || podAtual.celular;
+            if (contato || tel) {
+                document.getElementById("m-contato-wrap").classList.remove("hidden");
+                document.getElementById("m-contato").innerText = contato || "-";
+                document.getElementById("m-tel").innerText = tel || "-";
+                document.getElementById("m-tel-link").href = tel ? "tel:" + tel.replace(/\D/g, "") : "#";
+            } else {
+                document.getElementById("m-contato-wrap").classList.add("hidden");
+            }
+
+            // Pré-preenche campos existentes do banco (se já tiver sido preenchido antes)
+            setSelectSafe("chk-cobertura", podAtual.tipo_cobertura);
+            setSelectSafe("chk-pavimento", podAtual.pavimento);
+            setSelectSafe("chk-incendio",  podAtual.protecao_incendio);
+            document.getElementById("chk-cameras").checked = podAtual.check_cameras || false;
+            document.getElementById("chk-ev").checked      = podAtual.has_ev_charger || false;
+            setSelectSafe("chk-sinal",    podAtual.sinal_amplificador);
+            document.getElementById("chk-roteador").value     = podAtual.local_roteador    || "";
+            document.getElementById("chk-starlink").value     = podAtual.local_starlink     || "";
+            document.getElementById("chk-amplificador").value = podAtual.local_amplificador || "";
+            document.getElementById("chk-obs").value       = "";
+
+            // Limpa fotos
+            fotosArmazenadas = {};
+            resetarSlotSimples("fachada");
+            resetarSlotSimples("entrada");
+            resetarSlotMultiplo("patio-frente");
+            resetarSlotMultiplo("patio-fundo");
+            resetarSlotMultiplo("extintores");
+
+            // Esconde botão de confirmação, mostra salvar
+            document.getElementById("btn-confirmar-wrap").classList.add("hidden");
+            document.getElementById("btn-salvar").style.display = "block";
+
+            atualizarProgresso();
+
+            // Inicializa ou atualiza o mapa
+            var lat = parseFloat(podAtual.latitude)  || -23.5505;
+            var lng = parseFloat(podAtual.longitude) || -46.6333;
+
+            if (!modalMap) {
+                var container = document.getElementById("modal-map");
+                container.innerHTML = "";
+                modalMap = L.map(container, { zoomControl: false, attributionControl: false }).setView([lat, lng], 16);
+                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(modalMap);
+                modalMarker = L.marker([lat, lng]).addTo(modalMap);
+            } else {
+                modalMap.setView([lat, lng], 16);
+                modalMarker.setLatLng([lat, lng]);
+            }
+
+            // Botão de rota — abre Google Maps com navegação da localização atual até o POD
+            document.getElementById("btn-rota").href =
+                "https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lng + "&travelmode=driving";
+
+            document.getElementById("modalVistoria").classList.add("active");
+
+            // Scroll pro topo e força o mapa a recalcular tamanho
+            setTimeout(function() {
+                document.getElementById("vistoria-sheet").scrollTo(0, 0);
+                if (modalMap) modalMap.invalidateSize();
+            }, 80);
+        }
+
+        function setSelectSafe(id, val) {
+            var el = document.getElementById(id);
+            if (!el || !val) return;
+            for (var i = 0; i < el.options.length; i++) {
+                if (el.options[i].value === val) { el.value = val; return; }
+            }
+        }
+
+        // ─── PROGRESSO ─────────────────────────────────────────────────────────────
+        function atualizarProgresso() {
+            var campos = [
+                document.getElementById("chk-cobertura").value,
+                document.getElementById("chk-pavimento").value,
+                document.getElementById("chk-incendio").value,
+                "ok", // câmeras: toggle sempre conta
+                "ok", // ev: toggle sempre conta
+                document.getElementById("chk-sinal").value,
+                document.getElementById("chk-roteador").value.trim()
+            ];
+            var preenchidos = campos.filter(function(v) { return v && v !== ""; }).length;
+            var total = 7;
+            var pct = Math.round((preenchidos / total) * 100);
+            document.getElementById("progresso-txt").innerText = preenchidos + " / " + total + " campos";
+            document.getElementById("progress-fill").style.width = pct + "%";
+        }
+
+        // ─── FOTOS ─────────────────────────────────────────────────────────────────
+        function ativarUpload(chave) {
+            document.getElementById("file-" + chave).click();
+        }
+
+        function processarFoto(chave, multipla) {
+            var input = document.getElementById("file-" + chave);
+            if (!input.files || input.files.length === 0) return;
+            var file = input.files[0];
+            fotosArmazenadas[chave] = file;
+
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var slot = document.getElementById("slot-" + chave);
+                slot.classList.add("preenchida");
+                slot.innerHTML =
+                    "<img src='" + e.target.result + "' onclick=\"ativarUpload('" + chave + "')\">" +
+                    "<span class='foto-label'>✅ Foto salva — toque para trocar</span>" +
+                    "<span class='remover-foto' onclick=\"event.stopPropagation(); removerFoto('" + chave + "')\">×</span>";
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function processarFotoMultipla(chave) {
+            var input = document.getElementById("file-" + chave);
+            if (!input.files || input.files.length === 0) return;
+
+            if (!fotosArmazenadas[chave]) fotosArmazenadas[chave] = [];
+            for (var i = 0; i < input.files.length; i++) {
+                fotosArmazenadas[chave].push(input.files[i]);
+            }
+            renderizarGaleriaMultipla(chave);
+        }
+
+        function renderizarGaleriaMultipla(chave) {
+            var fotos = fotosArmazenadas[chave] || [];
+            var slot  = document.getElementById("slot-" + chave);
+            slot.onclick = null; // remove click direto
+
+            if (fotos.length === 0) {
+                slot.classList.remove("preenchida-multipla");
+                slot.innerHTML = "<div class='foto-upload-btn' id='btn-" + chave + "'><span class='text-2xl'>📷</span><span class='text-xs font-semibold text-slate-400'>Toque para fotografar</span></div>";
+                slot.onclick = function() { document.getElementById("file-" + chave).click(); };
+                return;
+            }
+
+            slot.classList.add("preenchida-multipla");
+            var grid = "<div class='foto-multi-grid p-2'>";
+            fotos.forEach(function(f, idx) {
+                var url = URL.createObjectURL(f);
+                grid += "<div class='foto-mini'><img src='" + url + "'><span class='rm' onclick=\"event.stopPropagation(); removerFotoMultipla('" + chave + "'," + idx + ")\">×</span></div>";
+            });
+            grid += "<div class='add-mais' onclick=\"document.getElementById('file-" + chave + "').click()\">+</div>";
+            grid += "</div><div style='padding:4px 8px 6px;text-align:center;font-size:10px;font-weight:700;color:#6366f1'>" + fotos.length + " foto(s) — toque + para adicionar mais</div>";
+            slot.innerHTML = grid;
+        }
+
+        function removerFoto(chave) {
+            fotosArmazenadas[chave] = null;
+            document.getElementById("file-" + chave).value = "";
+            resetarSlotSimples(chave);
+        }
+
+        function removerFotoMultipla(chave, idx) {
+            fotosArmazenadas[chave].splice(idx, 1);
+            renderizarGaleriaMultipla(chave);
+        }
+
+        function resetarSlotSimples(chave) {
+            var slot = document.getElementById("slot-" + chave);
+            slot.className = "foto-slot";
+            slot.innerHTML = "<input type='file' id='file-" + chave + "' accept='image/*' capture='environment' onchange=\"processarFoto('" + chave + "', false)\"><div class='foto-upload-btn'><span class='text-2xl'>📷</span><span class='text-xs font-semibold text-slate-400'>Toque para fotografar</span></div>";
+            slot.onclick = function() { ativarUpload(chave); };
+        }
+
+        function resetarSlotMultiplo(chave) {
+            fotosArmazenadas[chave] = [];
+            var slot = document.getElementById("slot-" + chave);
+            slot.className = "foto-slot";
+            slot.innerHTML = "<div class='foto-upload-btn'><span class='text-2xl'>📷</span><span class='text-xs font-semibold text-slate-400'>Toque para fotografar</span></div>";
+            slot.onclick = function() { document.getElementById("file-" + chave).click(); };
+        }
+
+        // ─── SALVAR VISTORIA ───────────────────────────────────────────────────────
+        async function salvarVistoria() {
+            if (!podAtual || !supabase) return;
+
+            var btn = document.getElementById("btn-salvar");
+            btn.innerText = "⏳ Salvando...";
+            btn.disabled  = true;
+
+            try {
+                // 1. Upload de fotos
+                var nomeBase = podAtual.nome_pod.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+                var pasta    = "pod_" + podAtual.podid + "_" + nomeBase;
+                var ts       = Date.now();
+
+                var urlsUpload = {};
+
+                async function uploadSimples(chave, sufixo) {
+                    var file = fotosArmazenadas[chave];
+                    if (!file) return null;
+                    var ext  = file.name.split(".").pop() || "jpg";
+                    var path = pasta + "/" + sufixo + "_" + ts + "." + ext;
+                    var res  = await supabase.storage.from(BUCKET_NAME).upload(path, file, { upsert: true });
+                    if (res.error) { console.warn("Upload " + chave + " falhou:", res.error.message); return null; }
+                    return supabase.storage.from(BUCKET_NAME).getPublicUrl(path).data.publicUrl;
+                }
+
+                async function uploadMultiplo(chave, sufixo) {
+                    var files = fotosArmazenadas[chave] || [];
+                    var urls  = [];
+                    for (var i = 0; i < files.length; i++) {
+                        var file = files[i];
+                        var ext  = file.name.split(".").pop() || "jpg";
+                        var path = pasta + "/" + sufixo + "_" + (i+1) + "_" + ts + "." + ext;
+                        var res  = await supabase.storage.from(BUCKET_NAME).upload(path, file, { upsert: true });
+                        if (!res.error) {
+                            urls.push(supabase.storage.from(BUCKET_NAME).getPublicUrl(path).data.publicUrl);
+                        }
+                    }
+                    return urls.length > 0 ? urls.join(", ") : null;
+                }
+
+                urlsUpload.fachada      = await uploadSimples("fachada",  "fachada");
+                urlsUpload.entrada      = await uploadSimples("entrada",  "entrada");
+                urlsUpload.patioFrente  = await uploadMultiplo("patio-frente", "patio_frente");
+                urlsUpload.patioFundo   = await uploadMultiplo("patio-fundo",  "patio_fundo");
+                urlsUpload.extintores   = await uploadMultiplo("extintores",   "extintores");
+
+                // 2. Montar observação com link das fotos
+                var obsBase = document.getElementById("chk-obs").value || "";
+                var linksFotos = [];
+                if (urlsUpload.fachada)     linksFotos.push("📸 Fachada: " + urlsUpload.fachada);
+                if (urlsUpload.entrada)     linksFotos.push("📸 Entrada: " + urlsUpload.entrada);
+                if (urlsUpload.patioFrente) linksFotos.push("📸 Pátio (entrada): " + urlsUpload.patioFrente);
+                if (urlsUpload.patioFundo)  linksFotos.push("📸 Pátio (fundo): " + urlsUpload.patioFundo);
+                if (urlsUpload.extintores)  linksFotos.push("📸 Extintores: " + urlsUpload.extintores);
+
+                var obsFinal = (obsBase ? obsBase + "\n\n" : "") +
+                    "— Vistoria de campo realizada em " + new Date().toLocaleDateString("pt-BR") + " —\n" +
+                    linksFotos.join("\n");
+
+                // 3. Atualizar POD no Supabase
+                var payload = {
+                    tipo_cobertura:     document.getElementById("chk-cobertura").value    || null,
+                    pavimento:          document.getElementById("chk-pavimento").value    || null,
+                    protecao_incendio:  document.getElementById("chk-incendio").value     || null,
+                    check_cameras:      document.getElementById("chk-cameras").checked,
+                    has_ev_charger:     document.getElementById("chk-ev").checked,
+                    sinal_amplificador: document.getElementById("chk-sinal").value        || null,
+                    local_roteador:     document.getElementById("chk-roteador").value     || null,
+                    local_starlink:     document.getElementById("chk-starlink").value     || null,
+                    local_amplificador: document.getElementById("chk-amplificador").value || null,
+                    observacoes:        obsFinal
+                };
+
+                var res = await supabase.from("pods").update(payload).eq("podid", podAtual.podid);
+                if (res.error) throw res.error;
+
+                // Atualiza cache local
+                var item = masterPods.find(function(x) { return x.podid === podAtual.podid; });
+                if (item) Object.assign(item, payload);
+
+                mostrarToast("✅ Vistoria salva com sucesso!");
+                btn.style.display = "none";
+                document.getElementById("btn-confirmar-wrap").classList.remove("hidden");
+
+            } catch(e) {
+                mostrarToast("❌ Erro ao salvar: " + e.message);
+                btn.innerText = "💾 Salvar Vistoria";
+                btn.disabled  = false;
+            }
+        }
+
+        // ─── CONFIRMAR REVISÃO ─────────────────────────────────────────────────────
+        function confirmarRevisao() {
+            if (!podAtual) return;
+
+            if (!revisadosLocal.includes(podAtual.podid)) {
+                revisadosLocal.push(podAtual.podid);
+                localStorage.setItem("pods_revisados", JSON.stringify(revisadosLocal));
+            }
+
+            fecharModal();
+            atualizarContadorHeader();
+            aplicarFiltros();
+            mostrarToast("🎉 POD marcado como concluído!");
+        }
+
+        // ─── MODAL ─────────────────────────────────────────────────────────────────
+        function fecharModal() {
+            document.getElementById("modalVistoria").classList.remove("active");
+            podAtual = null;
+        }
+
+        function fecharModalSeClicarFora(e) {
+            if (e.target === document.getElementById("modalVistoria")) fecharModal();
+        }
+
+        // ─── TOAST ─────────────────────────────────────────────────────────────────
+        function mostrarToast(msg) {
+            var t = document.getElementById("toast");
+            t.innerText = msg;
+            t.classList.add("show");
+            setTimeout(function() { t.classList.remove("show"); }, 3000);
+        }
+
+        // ─── START ─────────────────────────────────────────────────────────────────
+        init();
+    </script>
+</body>
+</html>
