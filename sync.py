@@ -63,7 +63,7 @@ def bq_to_supabase():
             "configuracao_vagas": row.Vacancies_Configuration,
             "protecao_incendio": row.Fire_Protection,
             "operacao_lavagem": row.Wash,
-            "check_demarcada": row.Designated_Parking_Space,
+            "check_demarcado": row.Designated_Parking_Space,
             "check_cameras": row.Security_Camera,
             "check_guarita": row.Guardhouse,
             "check_virar_24h": row.Change_turn_24h,
@@ -90,7 +90,7 @@ def supabase_to_bq():
         "id_friday, nome_pod, status, indicador_luminoso, distrito, cidade, estado, vagas_disponiveis, capacidade_total, parkinglotprice,"
         "contato_nome, telefone, email, created_at, check_overbooking, latitude, longitude, h3_cell_res_8, link_drive, observacoes,"
         "operacao_24h, disponivel, entrada_veiculos, entrada_pedestres, tipo_cobertura, pavimento, configuracao_vagas, protecao_incendio,"
-        "operacao_lavagem, check_demarcada, check_cameras, check_guarita, check_virar_24h, is_blacklisted, has_ev_charger, local_roteador,"
+        "operacao_lavagem, check_demarcado, check_cameras, check_guarita, check_virar_24h, is_blacklisted, has_ev_charger, local_roteador,"
         "local_amplificador, local_starlink, enxoval_marketing"
     )
     
@@ -141,7 +141,7 @@ def supabase_to_bq():
             "Vacancies_Configuration": r['configuracao_vagas'],
             "Fire_Protection": r['protecao_incendio'],
             "Wash": r['operacao_lavagem'],
-            "Designated_Parking_Space": r['check_demarcada'],
+            "Designated_Parking_Space": r['check_demarcado'],
             "Security_Camera": r['check_cameras'],
             "Guardhouse": r['check_guarita'],  
             "Change_turn_24h": r['check_virar_24h'],  
