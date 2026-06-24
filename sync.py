@@ -180,7 +180,7 @@ def supabase_to_bq():
             bigquery.SchemaField("State", "STRING"),
             bigquery.SchemaField("Available_Vehicles", "INTEGER"),
             bigquery.SchemaField("Status", "STRING"),
-            bigquery.SchemaField("Parking_Lots", "FLOAT"),
+            bigquery.SchemaField("Parking_Lots", "INTEGER"),
             bigquery.SchemaField("Parking_Lot_Price", "FLOAT"),
             bigquery.SchemaField("Contac_Name", "STRING"),
             bigquery.SchemaField("Contact_Telefone", "STRING"),
