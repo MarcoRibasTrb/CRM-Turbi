@@ -140,7 +140,7 @@ def supabase_to_bq():
             "State": r['estado'],
             "Available_Vehicles": r['vagas_disponiveis'],
             "Start_Date": r['created_at'],
-            "Overbooking": r['check_overbooking'],
+            "Overbooking": int(r['check_overbooking']) if r['check_overbooking'] is not None else None,
             "Latitude": r['latitude'],
             "Longitude": r['longitude'],
             "H3_Cell": r['h3_cell_res_8'],
