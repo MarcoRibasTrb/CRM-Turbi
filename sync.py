@@ -47,8 +47,8 @@ def bq_to_supabase():
             "contato_nome": row.Contac_Name, 
             "telefone": row.Contact_Telefone,
             "email": row.Contact_Email,
-            "created_at": str(row.Start_Date) if row.Start_Date else None, 
-            "check_overbooking": row.Overbooking, # Removido o str() para preservar booleano se aplicável
+            "created_at": str(row.Start_Date) if row.Start_Date else None,
+            "check_overbooking": row.Overbooking,
             "latitude": row.Latitude,
             "longitude": row.Longitude,
             "h3_cell_res_8": row.H3_Cell,
@@ -78,14 +78,17 @@ def bq_to_supabase():
     
     if lista_estacionamentos:
         print(f"Enviando {len(lista_estacionamentos)} registros para o Supabase...")
-        supabase.table("pods").upsert(lista_estacionamentos).execute()
+        # CORREÇÃO 1: on_conflict garante UPDATE nos registros existentes
+        supabase.table("pods").upsert(
+            lista_estacionamentos,
+            on_conflict="id_friday"
+        ).execute()
         
     print("✅ Fluxo BigQuery -> Supabase concluído.")
 
 def supabase_to_bq():
     print("🤖 [Fluxo 2] Supabase -> BigQuery...")
     
-    # CORRIGIDO: Removido espaços e corrigido 'indicador_luminoso'
     colunas_supabase = (
         "id_friday, nome_pod, status, indicador_luminoso, distrito, cidade, estado, vagas_disponiveis, capacidade_total, parkinglotprice,"
         "contato_nome, telefone, email, created_at, check_overbooking, latitude, longitude, h3_cell_res_8, link_drive, observacoes,"
@@ -116,7 +119,7 @@ def supabase_to_bq():
             "Light_Indicator": r['indicador_luminoso'],
             "Status": r['status'],
             "Parking_Lots": r['capacidade_total'],
-            "Parking_Space_Price": r['parkinglotprice'],
+            "Parking_Lot_Price": r['parkinglotprice'],  # CORREÇÃO 2: era Parking_Space_Price
             "Contac_Name": r['contato_nome'],
             "Contact_Telefone": r['telefone'],
             "Contact_Email": r['email'],
@@ -150,11 +153,10 @@ def supabase_to_bq():
             "Router_Place": r['local_roteador'],
             "Amplifier_Place": r['local_amplificador'],
             "Starkink_Place": r['local_starlink'], 
-            "Marketing_Options": r['enxoval_marketing']  
+            "Marketing_Options": r['enxoval_marketing']
         }
         linhas_para_bq.append(linha)
 
-    # CORRIGIDO: dataset espera apenas o ID do dataset ("pods")
     dataset_ref = client.dataset("pods") 
     stage_table_ref = dataset_ref.table("tb_pods_stage")
     
@@ -167,7 +169,6 @@ def supabase_to_bq():
     load_job.result() 
 
     print("Executando o MERGE de atualização na tabela principal...")
-    # CORRIGIDO: Adicionado fechamento de aspas triplas no final da string
     merge_query = """
         MERGE `turbi-dc-ops.pods.tb_pods` T
         USING `turbi-dc-ops.pods.tb_pods_stage` S
@@ -177,7 +178,7 @@ def supabase_to_bq():
             T.Light_Indicator = S.Light_Indicator,
             T.Status = S.Status,
             T.Parking_Lots = S.Parking_Lots,
-            T.Parking_Space_Price = S.Parking_Space_Price,
+            T.Parking_Lot_Price = S.Parking_Lot_Price,
             T.Contac_Name = S.Contac_Name,
             T.Contact_Telefone = S.Contact_Telefone,
             T.Contact_Email = S.Contact_Email,
