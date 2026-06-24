@@ -178,6 +178,7 @@
                         <option value="Asfalto/concreto">Asfalto / Concreto</option>
                         <option value="Piso Epóxi">Piso Epóxi</option>
                         <option value="Terra batida">Terra batida</option>
+                        <option value="Brita/Pedrisco">Brita / Pedrisco</option>
                         <option value="Grama">Grama</option>
                     </select>
                 </div>
@@ -196,19 +197,7 @@
 
                 <p class="section-label">⚙️ Equipamentos</p>
 
-                <!-- 4. Câmeras -->
-                <div class="toggle-wrap">
-                    <div>
-                        <p class="text-sm font-semibold text-slate-700">📷 Câmera de Segurança</p>
-                        <p class="text-[11px] text-slate-400">Possui câmeras instaladas?</p>
-                    </div>
-                    <label class="toggle">
-                        <input type="checkbox" id="chk-cameras" onchange="atualizarProgresso()">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <!-- 5. EV -->
+                <!-- 4. EV -->
                 <div class="toggle-wrap">
                     <div>
                         <p class="text-sm font-semibold text-slate-700">🔌 Carregador Elétrico (EV)</p>
@@ -222,38 +211,30 @@
 
                 <p class="section-label">🌐 Rede e Conectividade</p>
 
-                <!-- 6. Rede -->
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Estrutura de Sinal / Rede</label>
-                    <div class="relative">
-                        <select id="chk-sinal" class="select-field" onchange="atualizarProgresso()">
-                            <option value="">— Selecione —</option>
-                            <option value="Não verificado">Não verificado</option>
-                            <option value="Subsolo">Subsolo sem equipamento</option>
-                            <option value="Subsolo com amplificador">Subsolo com amplificador</option>
-                            <option value="Subsolo com roteador">Subsolo com roteador</option>
-                            <option value="Garagem">Garagem sem equipamento</option>
-                            <option value="Garagem com amplificador">Garagem com amplificador</option>
-                            <option value="Garagem com roteador">Garagem com roteador</option>
-                            <option value="Prédio">Prédio sem equipamento</option>
-                            <option value="Prédio com amplificador">Prédio com amplificador</option>
-                            <option value="Prédio com roteador">Prédio com roteador</option>
-                            <option value="📡 Starlink / Satélite">📡 Starlink / Satélite</option>
-                        </select>
+                <!-- Sinal funcionando -->
+                <div class="toggle-wrap">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-700">📶 Sinal de rede funcionando</p>
+                        <p class="text-[11px] text-slate-400">Há sinal de celular/rede no local?</p>
                     </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="chk-sinal" onchange="atualizarProgresso()">
+                        <span class="slider"></span>
+                    </label>
                 </div>
 
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">📍 Localização do Roteador Principal</label>
-                    <input type="text" id="chk-roteador" class="input-text" placeholder="Ex: Guarita principal / Subsolo - Vaga 10" oninput="atualizarProgresso()">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">📍 Localização da Starlink</label>
-                    <input type="text" id="chk-starlink" class="input-text" placeholder="Ex: Cobertura / Não possui">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">📍 Localização do Amplificador / Repetidor</label>
-                    <input type="text" id="chk-amplificador" class="input-text" placeholder="Ex: Subsolo G2 / Não possui">
+                <p class="section-label">🅿️ Demarcação</p>
+
+                <!-- Vagas demarcadas -->
+                <div class="toggle-wrap">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-700">🖌️ Vagas demarcadas</p>
+                        <p class="text-[11px] text-slate-400">As vagas estão pintadas/demarcadas?</p>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="chk-demarcado" onchange="atualizarProgresso()">
+                        <span class="slider"></span>
+                    </label>
                 </div>
 
                 <p class="section-label">📸 Fotos da Vistoria (5 obrigatórias)</p>
@@ -374,7 +355,7 @@
             var tudo = []; var de = 0; var ate = 999; var temMais = true;
             while (temMais) {
                 var res = await supabase.from("pods").select("*")
-                    .eq("origem_registro", "base_interna")
+                    .eq("origem_registro", "base interna")
                     .eq("status", "Ativo")
                     .range(de, ate);
                 if (res.error) throw res.error;
@@ -506,13 +487,10 @@
             setSelectSafe("chk-cobertura", podAtual.tipo_cobertura);
             setSelectSafe("chk-pavimento", podAtual.pavimento);
             setSelectSafe("chk-incendio",  podAtual.protecao_incendio);
-            document.getElementById("chk-cameras").checked = podAtual.check_cameras || false;
-            document.getElementById("chk-ev").checked      = podAtual.has_ev_charger || false;
-            setSelectSafe("chk-sinal",    podAtual.sinal_amplificador);
-            document.getElementById("chk-roteador").value     = podAtual.local_roteador    || "";
-            document.getElementById("chk-starlink").value     = podAtual.local_starlink     || "";
-            document.getElementById("chk-amplificador").value = podAtual.local_amplificador || "";
-            document.getElementById("chk-obs").value       = "";
+            document.getElementById("chk-ev").checked         = podAtual.has_ev_charger  || false;
+            document.getElementById("chk-sinal").checked      = podAtual.sinal            || false;
+            document.getElementById("chk-demarcado").checked  = podAtual.check_demarcado  || false;
+            document.getElementById("chk-obs").value          = "";
 
             // Limpa fotos
             fotosArmazenadas = {};
@@ -570,13 +548,12 @@
                 document.getElementById("chk-cobertura").value,
                 document.getElementById("chk-pavimento").value,
                 document.getElementById("chk-incendio").value,
-                "ok", // câmeras: toggle sempre conta
                 "ok", // ev: toggle sempre conta
-                document.getElementById("chk-sinal").value,
-                document.getElementById("chk-roteador").value.trim()
+                "ok", // sinal: toggle sempre conta
+                "ok"  // demarcado: toggle sempre conta
             ];
+            var total = 6;
             var preenchidos = campos.filter(function(v) { return v && v !== ""; }).length;
-            var total = 7;
             var pct = Math.round((preenchidos / total) * 100);
             document.getElementById("progresso-txt").innerText = preenchidos + " / " + total + " campos";
             document.getElementById("progress-fill").style.width = pct + "%";
@@ -727,16 +704,13 @@
 
                 // 3. Atualizar POD no Supabase
                 var payload = {
-                    tipo_cobertura:     document.getElementById("chk-cobertura").value    || null,
-                    pavimento:          document.getElementById("chk-pavimento").value    || null,
-                    protecao_incendio:  document.getElementById("chk-incendio").value     || null,
-                    check_cameras:      document.getElementById("chk-cameras").checked,
-                    has_ev_charger:     document.getElementById("chk-ev").checked,
-                    sinal_amplificador: document.getElementById("chk-sinal").value        || null,
-                    local_roteador:     document.getElementById("chk-roteador").value     || null,
-                    local_starlink:     document.getElementById("chk-starlink").value     || null,
-                    local_amplificador: document.getElementById("chk-amplificador").value || null,
-                    observacoes:        obsFinal
+                    tipo_cobertura:    document.getElementById("chk-cobertura").value  || null,
+                    pavimento:         document.getElementById("chk-pavimento").value  || null,
+                    protecao_incendio: document.getElementById("chk-incendio").value   || null,
+                    has_ev_charger:    document.getElementById("chk-ev").checked,
+                    sinal:             document.getElementById("chk-sinal").checked,
+                    check_demarcado:   document.getElementById("chk-demarcado").checked,
+                    observacoes:       obsFinal
                 };
 
                 var res = await supabase.from("pods").update(payload).eq("podid", podAtual.podid);
