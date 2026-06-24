@@ -72,7 +72,8 @@ def bq_to_supabase():
             "local_roteador": row.Router_Place,
             "local_amplificador": row.Amplifier_Place,
             "local_starlink": row.Starkink_Place, 
-            "enxoval_marketing": row.Marketing_Options
+            "enxoval_marketing": row.Marketing_Options,
+            "origem_registro": "base interna"
         }
         lista_estacionamentos.append(data)
     
