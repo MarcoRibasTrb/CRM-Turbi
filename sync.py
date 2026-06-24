@@ -18,6 +18,16 @@ creds = Credentials(
 )
 client = bigquery.Client(credentials=creds, project="turbi-dc-ops")
 
+def to_bool(value):
+    """Converte valor para bool preservando None, independente de como a lib serializa."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() == 'true'
+    return bool(value)
+
 def bq_to_supabase():
     print("🤖 [Fluxo 1] BigQuery -> Supabase...")
     
@@ -79,7 +89,6 @@ def bq_to_supabase():
     
     if lista_estacionamentos:
         print(f"Enviando {len(lista_estacionamentos)} registros para o Supabase...")
-        # CORREÇÃO 1: on_conflict garante UPDATE nos registros existentes
         supabase.table("pods").upsert(
             lista_estacionamentos,
             on_conflict="id_friday"
@@ -117,10 +126,10 @@ def supabase_to_bq():
     for r in records_validos:
         linha = {
             "Id": r['id_friday'],
-            "Light_Indicator": r['indicador_luminoso'],
+            "Light_Indicator": to_bool(r['indicador_luminoso']),
             "Status": r['status'],
             "Parking_Lots": r['capacidade_total'],
-            "Parking_Lot_Price": r['parkinglotprice'],  # CORREÇÃO 2: era Parking_Space_Price
+            "Parking_Lot_Price": r['parkinglotprice'],
             "Contac_Name": r['contato_nome'],
             "Contact_Telefone": r['telefone'],
             "Contact_Email": r['email'],
@@ -131,29 +140,29 @@ def supabase_to_bq():
             "State": r['estado'],
             "Available_Vehicles": r['vagas_disponiveis'],
             "Start_Date": r['created_at'],
-            "Overbooking": r['check_overbooking'],
+            "Overbooking": to_bool(r['check_overbooking']),
             "Latitude": r['latitude'],
             "Longitude": r['longitude'],
             "H3_Cell": r['h3_cell_res_8'],
             "Drive_Pictures": r['link_drive'],
-            "Operation_24h": r['operacao_24h'],
-            "Available": r['disponivel'],
+            "Operation_24h": to_bool(r['operacao_24h']),
+            "Available": to_bool(r['disponivel']),
             "Vehicle_Entrance": r['entrada_veiculos'],
             "Pedestrian_Entrance": r['entrada_pedestres'],
             "Cover_Type": r['tipo_cobertura'],
             "Floor_Type": r['pavimento'],
             "Vacancies_Configuration": r['configuracao_vagas'],
-            "Fire_Protection": r['protecao_incendio'],
-            "Wash": r['operacao_lavagem'],
-            "Designated_Parking_Space": r['check_demarcado'],
-            "Security_Camera": r['check_cameras'],
-            "Guardhouse": r['check_guarita'],  
-            "Change_turn_24h": r['check_virar_24h'],  
-            "Blacklist": r['is_blacklisted'],
-            "Ev_Charger": r['has_ev_charger'], 
+            "Fire_Protection": to_bool(r['protecao_incendio']),
+            "Wash": to_bool(r['operacao_lavagem']),
+            "Designated_Parking_Space": to_bool(r['check_demarcado']),
+            "Security_Camera": to_bool(r['check_cameras']),
+            "Guardhouse": to_bool(r['check_guarita']),
+            "Change_turn_24h": to_bool(r['check_virar_24h']),
+            "Blacklist": to_bool(r['is_blacklisted']),
+            "Ev_Charger": to_bool(r['has_ev_charger']),
             "Router_Place": r['local_roteador'],
             "Amplifier_Place": r['local_amplificador'],
-            "Starkink_Place": r['local_starlink'], 
+            "Starkink_Place": r['local_starlink'],
             "Marketing_Options": r['enxoval_marketing']
         }
         linhas_para_bq.append(linha)
