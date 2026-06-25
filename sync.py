@@ -31,6 +31,24 @@ def to_bool(value):
 def bq_to_supabase():
     print("🤖 [Fluxo 1] BigQuery -> Supabase...")
     
+    # --- PASSO A: Baixar espelho do Supabase com paginação ---
+    print("Baixando base atual do Supabase para cruzamento...")
+    supabase_records = []
+    limit = 1000
+    offset = 0
+    while True:
+        res = supabase.table("pods").select("id_friday, nome_pod, status").range(offset, offset + limit - 1).execute()
+        data = res.data
+        supabase_records.extend(data)
+        if len(data) < limit:
+            break
+        offset += limit
+        
+    # Criar dicionários de busca rápida
+    supa_by_id = {str(r["id_friday"]): r for r in supabase_records if r.get("id_friday")}
+    supa_by_nome = {r["nome_pod"].strip().lower(): r for r in supabase_records if r.get("nome_pod")}
+    
+    # --- PASSO B: Buscar dados do BigQuery ---
     query = """
         SELECT Id, Name, District_Name, City_Name, State, Available_Vehicles, Status, Parking_Lots, Parking_Lot_Price,
                Contac_Name, Contact_Telefone, Contact_Email, Start_Date, Overbooking, Latitude, Longitude, H3_Cell, Drive_Pictures,
@@ -40,13 +58,27 @@ def bq_to_supabase():
     """
     query_job = client.query(query)
     
-    lista_estacionamentos = []
+    lista_upsert = []
     
+    print("Processando regras de cruzamento e atualização de dados...")
     for row in query_job.result():
+        bq_id_str = str(row.Id)
+        bq_name = row.Name
+        bq_name_lower = bq_name.strip().lower() if bq_name else ""
+        
+        # Tenta achar o match por ID. Se não achar, tenta por NOME.
+        match = supa_by_id.get(bq_id_str)
+        match_type = "id"
+        
+        if not match and bq_name_lower in supa_by_nome:
+            match = supa_by_nome[bq_name_lower]
+            match_type = "nome"
+
+        # Os dados sempre vão receber o Status do BigQuery, pois ele é mandatório.
         data = {
             "id_friday": row.Id,               
             "nome_pod": row.Name,                   
-            "status": row.Status,               
+            "status": row.Status, # BQ dita o status (se era "não contatado", vira o status do BQ)
             "indicador_luminoso": row.Light_Indicator, 
             "distrito": row.District_Name,
             "cidade": row.City_Name,
@@ -85,16 +117,23 @@ def bq_to_supabase():
             "enxoval_marketing": row.Marketing_Options,
             "origem_registro": "base interna"
         }
-        lista_estacionamentos.append(data)
+        
+        # Se encontrou por nome e faltava o ID, faz um UPDATE direto para não gerar duplicata no UPSERT.
+        # Ele vai injetar o "id_friday" e atualizar o status para o do BQ.
+        if match and match_type == "nome" and not match.get("id_friday"):
+            supabase.table("pods").update(data).eq("nome_pod", match["nome_pod"]).execute()
+        else:
+            lista_upsert.append(data)
     
-    if lista_estacionamentos:
-        print(f"Enviando {len(lista_estacionamentos)} registros para o Supabase...")
+    if lista_upsert:
+        print(f"Enviando {len(lista_upsert)} registros via UPSERT para o Supabase...")
         supabase.table("pods").upsert(
-            lista_estacionamentos,
+            lista_upsert,
             on_conflict="id_friday"
         ).execute()
         
     print("✅ Fluxo BigQuery -> Supabase concluído.")
+
 
 def supabase_to_bq():
     print("🤖 [Fluxo 2] Supabase -> BigQuery...")
@@ -107,14 +146,8 @@ def supabase_to_bq():
         "local_amplificador, local_starlink, enxoval_marketing"
     )
     
-    response = supabase.table("pods").select(colunas_supabase).execute()
-    records = response.data
-    
-    if not records:
-        print("Nenhum dado encontrado no Supabase para atualizar.")
-        return
-
-    records_validos = [r for r in records if r.get('id_friday') is not None]
+    response = supabase.table("pods").select(colunas_supabase).not_.is_("id_friday", "null").execute()
+    records_validos = response.data
     
     if not records_validos:
         print("Nenhum registro com 'id_friday' válido para atualizar no BQ.")
@@ -219,7 +252,7 @@ def supabase_to_bq():
     load_job = client.load_table_from_json(linhas_para_bq, stage_table_ref, job_config=job_config)
     load_job.result() 
 
-    print("Executando o MERGE de atualização na tabela principal...")
+    print("Executando o MERGE de atualização restrita na tabela principal...")
     merge_query = """
         MERGE `turbi-dc-ops.pods.tb_pods` T
         USING `turbi-dc-ops.pods.tb_pods_stage` S
@@ -227,26 +260,9 @@ def supabase_to_bq():
         WHEN MATCHED THEN
           UPDATE SET 
             T.Light_Indicator = S.Light_Indicator,
-            T.Status = S.Status,
-            T.Parking_Lots = S.Parking_Lots,
-            T.Parking_Lot_Price = S.Parking_Lot_Price,
-            T.Contac_Name = S.Contac_Name,
-            T.Contact_Telefone = S.Contact_Telefone,
-            T.Contact_Email = S.Contact_Email,
             T.Observations = S.Observations,
-            T.Name = S.Name,
-            T.District_Name = S.District_Name,
-            T.City_Name = S.City_Name,
-            T.State = S.State,
-            T.Available_Vehicles = S.Available_Vehicles,
-            T.Start_Date = S.Start_Date,
-            T.Overbooking = S.Overbooking,
-            T.Latitude = S.Latitude,
-            T.Longitude = S.Longitude,
-            T.H3_Cell = S.H3_Cell,
             T.Drive_Pictures = S.Drive_Pictures,
             T.Operation_24h = S.Operation_24h,
-            T.Available = S.Available,
             T.Vehicle_Entrance = S.Vehicle_Entrance,
             T.Pedestrian_Entrance = S.Pedestrian_Entrance,
             T.Cover_Type = S.Cover_Type,
@@ -258,7 +274,6 @@ def supabase_to_bq():
             T.Security_Camera = S.Security_Camera,
             T.Guardhouse = S.Guardhouse,
             T.Change_turn_24h = S.Change_turn_24h,
-            T.Blacklist = S.Blacklist,
             T.Ev_Charger = S.Ev_Charger,
             T.Router_Place = S.Router_Place,
             T.Amplifier_Place = S.Amplifier_Place,
@@ -267,7 +282,7 @@ def supabase_to_bq():
     """
     client.query(merge_query).result()
     
-    print("✅ Fluxo Supabase -> BigQuery concluído com sucesso total utilizando MERGE!")
+    print("✅ Fluxo Supabase -> BigQuery concluído com segurança total!")
 
 if __name__ == "__main__":
     bq_to_supabase()
