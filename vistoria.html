@@ -214,8 +214,8 @@
                 <!-- Sinal funcionando -->
                 <div class="toggle-wrap">
                     <div>
-                        <p class="text-sm font-semibold text-slate-700">📶 Sinal de rede funcionando</p>
-                        <p class="text-[11px] text-slate-400">Há sinal de celular/rede no local?</p>
+                        <p class="text-sm font-semibold text-slate-700">🚗 Teste de abertura e fechamento de portas</p>
+                        <p class="text-[11px] text-slate-400">O sistema de acesso funcionou corretamente?</p>
                     </div>
                     <label class="toggle">
                         <input type="checkbox" id="chk-sinal" onchange="atualizarProgresso()">
@@ -299,8 +299,14 @@
                     </div>
                 </div>
 
-                <p class="section-label">💬 Observações (opcional)</p>
-                <textarea id="chk-obs" rows="3" placeholder="Alguma observação relevante sobre esta vistoria..." class="input-text resize-none"></textarea>
+                <div class="mt-2 mb-1">
+                    <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">💬 Observações</p>
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-2">
+                        <p class="text-[11px] font-bold text-amber-700 mb-1">Lembre-se de perguntar no local:</p>
+                        <p class="text-[11px] text-amber-700 leading-relaxed">• Como funciona o POD à noite?<br>• A internet pega bem em todos os andares?<br>• Viu algo errado no local?</p>
+                    </div>
+                </div>
+                <textarea id="chk-obs" rows="3" placeholder="Anote aqui as respostas e qualquer observação relevante..." class="input-text resize-none"></textarea>
 
                 <!-- Botão salvar -->
                 <div class="mt-4 pb-2">
@@ -339,6 +345,7 @@
         var revisadosLocal = JSON.parse(localStorage.getItem("pods_revisados") || "[]");
         var modalMap      = null;
         var modalMarker   = null;
+        var vistoriaInicio = null;
 
         // ─── INIT ──────────────────────────────────────────────────────────────────
         async function init() {
@@ -462,10 +469,33 @@
             document.getElementById("hdr-pendentes").innerText = pendentes + " pendentes";
         }
 
+        function resetarFormulario() {
+            document.getElementById("chk-cobertura").value  = "";
+            document.getElementById("chk-pavimento").value  = "";
+            document.getElementById("chk-incendio").value   = "";
+            document.getElementById("chk-ev").checked       = false;
+            document.getElementById("chk-sinal").checked    = false;
+            document.getElementById("chk-demarcado").checked = false;
+            document.getElementById("chk-obs").value        = "";
+            fotosArmazenadas = {};
+            resetarSlotSimples("fachada");
+            resetarSlotSimples("entrada");
+            resetarSlotMultiplo("patio-frente");
+            resetarSlotMultiplo("patio-fundo");
+            resetarSlotMultiplo("extintores");
+            document.getElementById("btn-confirmar-wrap").classList.add("hidden");
+            document.getElementById("btn-salvar").style.display = "block";
+            document.getElementById("btn-salvar").innerText = "💾 Salvar Vistoria";
+            document.getElementById("btn-salvar").disabled  = false;
+        }
+
         // ─── ABRIR POD ─────────────────────────────────────────────────────────────
         function abrirPod(podid) {
             podAtual = masterPods.find(function(p) { return p.podid === podid; });
             if (!podAtual) return;
+
+            // Limpa tudo antes de preencher com os dados do POD selecionado
+            resetarFormulario();
 
             // Preenche header do modal
             document.getElementById("m-nome").innerText = podAtual.nome_pod || "POD #" + podAtual.podid;
@@ -483,26 +513,13 @@
                 document.getElementById("m-contato-wrap").classList.add("hidden");
             }
 
-            // Pré-preenche campos existentes do banco (se já tiver sido preenchido antes)
+            // Pré-preenche com dados já salvos no banco para este POD
             setSelectSafe("chk-cobertura", podAtual.tipo_cobertura);
             setSelectSafe("chk-pavimento", podAtual.pavimento);
             setSelectSafe("chk-incendio",  podAtual.protecao_incendio);
-            document.getElementById("chk-ev").checked         = podAtual.has_ev_charger  || false;
-            document.getElementById("chk-sinal").checked      = podAtual.sinal            || false;
-            document.getElementById("chk-demarcado").checked  = podAtual.check_demarcado  || false;
-            document.getElementById("chk-obs").value          = "";
-
-            // Limpa fotos
-            fotosArmazenadas = {};
-            resetarSlotSimples("fachada");
-            resetarSlotSimples("entrada");
-            resetarSlotMultiplo("patio-frente");
-            resetarSlotMultiplo("patio-fundo");
-            resetarSlotMultiplo("extintores");
-
-            // Esconde botão de confirmação, mostra salvar
-            document.getElementById("btn-confirmar-wrap").classList.add("hidden");
-            document.getElementById("btn-salvar").style.display = "block";
+            document.getElementById("chk-ev").checked        = podAtual.has_ev_charger  || false;
+            document.getElementById("chk-sinal").checked     = podAtual.sinal           || false;
+            document.getElementById("chk-demarcado").checked = podAtual.check_demarcado || false;
 
             atualizarProgresso();
 
@@ -526,6 +543,7 @@
                 "https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lng + "&travelmode=driving";
 
             document.getElementById("modalVistoria").classList.add("active");
+            vistoriaInicio = new Date().toISOString();
 
             // Scroll pro topo e força o mapa a recalcular tamanho
             setTimeout(function() {
@@ -710,7 +728,9 @@
                     has_ev_charger:    document.getElementById("chk-ev").checked,
                     sinal:             document.getElementById("chk-sinal").checked,
                     check_demarcado:   document.getElementById("chk-demarcado").checked,
-                    observacoes:       obsFinal
+                    observacoes:       obsFinal,
+                    vistoria_inicio:   vistoriaInicio,
+                    vistoria_fim:      new Date().toISOString()
                 };
 
                 var res = await supabase.from("pods").update(payload).eq("podid", podAtual.podid);
