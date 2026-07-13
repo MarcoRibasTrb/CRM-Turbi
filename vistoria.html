@@ -665,62 +665,13 @@
             if (!podAtual || !supabase) return;
 
             var btn = document.getElementById("btn-salvar");
-            btn.innerText = "⏳ Salvando...";
+            btn.innerText = "⏳ Salvando checklist...";
             btn.disabled  = true;
 
+            var erros = [];
+
             try {
-                // 1. Upload de fotos
-                var nomeBase = podAtual.nome_pod.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
-                var pasta    = "pod_" + podAtual.podid + "_" + nomeBase;
-                var ts       = Date.now();
-
-                var urlsUpload = {};
-
-                async function uploadSimples(chave, sufixo) {
-                    var file = fotosArmazenadas[chave];
-                    if (!file) return null;
-                    var ext  = file.name.split(".").pop() || "jpg";
-                    var path = pasta + "/" + sufixo + "_" + ts + "." + ext;
-                    var res  = await supabase.storage.from(BUCKET_NAME).upload(path, file, { upsert: true });
-                    if (res.error) { console.warn("Upload " + chave + " falhou:", res.error.message); return null; }
-                    return supabase.storage.from(BUCKET_NAME).getPublicUrl(path).data.publicUrl;
-                }
-
-                async function uploadMultiplo(chave, sufixo) {
-                    var files = fotosArmazenadas[chave] || [];
-                    var urls  = [];
-                    for (var i = 0; i < files.length; i++) {
-                        var file = files[i];
-                        var ext  = file.name.split(".").pop() || "jpg";
-                        var path = pasta + "/" + sufixo + "_" + (i+1) + "_" + ts + "." + ext;
-                        var res  = await supabase.storage.from(BUCKET_NAME).upload(path, file, { upsert: true });
-                        if (!res.error) {
-                            urls.push(supabase.storage.from(BUCKET_NAME).getPublicUrl(path).data.publicUrl);
-                        }
-                    }
-                    return urls.length > 0 ? urls.join(", ") : null;
-                }
-
-                urlsUpload.fachada      = await uploadSimples("fachada",  "fachada");
-                urlsUpload.entrada      = await uploadSimples("entrada",  "entrada");
-                urlsUpload.patioFrente  = await uploadMultiplo("patio-frente", "patio_frente");
-                urlsUpload.patioFundo   = await uploadMultiplo("patio-fundo",  "patio_fundo");
-                urlsUpload.extintores   = await uploadMultiplo("extintores",   "extintores");
-
-                // 2. Montar observação com link das fotos
-                var obsBase = document.getElementById("chk-obs").value || "";
-                var linksFotos = [];
-                if (urlsUpload.fachada)     linksFotos.push("📸 Fachada: " + urlsUpload.fachada);
-                if (urlsUpload.entrada)     linksFotos.push("📸 Entrada: " + urlsUpload.entrada);
-                if (urlsUpload.patioFrente) linksFotos.push("📸 Pátio (entrada): " + urlsUpload.patioFrente);
-                if (urlsUpload.patioFundo)  linksFotos.push("📸 Pátio (fundo): " + urlsUpload.patioFundo);
-                if (urlsUpload.extintores)  linksFotos.push("📸 Extintores: " + urlsUpload.extintores);
-
-                var obsFinal = (obsBase ? obsBase + "\n\n" : "") +
-                    "— Vistoria de campo realizada em " + new Date().toLocaleDateString("pt-BR") + " —\n" +
-                    linksFotos.join("\n");
-
-                // 3. Atualizar POD no Supabase
+                // ── 1. SALVAR CHECKLIST PRIMEIRO (independente das fotos) ──────────
                 var payload = {
                     tipo_cobertura:    document.getElementById("chk-cobertura").value  || null,
                     pavimento:         document.getElementById("chk-pavimento").value  || null,
@@ -728,7 +679,7 @@
                     has_ev_charger:    document.getElementById("chk-ev").checked,
                     sinal:             document.getElementById("chk-sinal").checked,
                     check_demarcado:   document.getElementById("chk-demarcado").checked,
-                    observacoes:       obsFinal,
+                    observacoes:       document.getElementById("chk-obs").value || null,
                     vistoria_inicio:   vistoriaInicio,
                     vistoria_fim:      new Date().toISOString()
                 };
@@ -740,12 +691,81 @@
                 var item = masterPods.find(function(x) { return x.podid === podAtual.podid; });
                 if (item) Object.assign(item, payload);
 
-                mostrarToast("✅ Vistoria salva com sucesso!");
+                // ── 2. UPLOAD DE FOTOS (falhas não bloqueiam o save) ──────────────
+                btn.innerText = "⏳ Enviando fotos...";
+
+                var nomeBase = (podAtual.nome_pod || "pod").replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+                var pasta    = "pod_" + podAtual.podid + "_" + nomeBase;
+                var ts       = Date.now();
+                var urlsUpload = {};
+
+                async function uploadSimples(chave, sufixo) {
+                    var file = fotosArmazenadas[chave];
+                    if (!file) return null;
+                    try {
+                        var ext  = file.name.split(".").pop() || "jpg";
+                        var path = pasta + "/" + sufixo + "_" + ts + "." + ext;
+                        var r    = await supabase.storage.from(BUCKET_NAME).upload(path, file, { upsert: true });
+                        if (r.error) { erros.push("Foto " + sufixo + ": " + r.error.message); return null; }
+                        return supabase.storage.from(BUCKET_NAME).getPublicUrl(path).data.publicUrl;
+                    } catch(e) { erros.push("Foto " + sufixo + ": " + e.message); return null; }
+                }
+
+                async function uploadMultiplo(chave, sufixo) {
+                    var files = fotosArmazenadas[chave] || [];
+                    var urls  = [];
+                    for (var i = 0; i < files.length; i++) {
+                        try {
+                            var ext  = files[i].name.split(".").pop() || "jpg";
+                            var path = pasta + "/" + sufixo + "_" + (i+1) + "_" + ts + "." + ext;
+                            var r    = await supabase.storage.from(BUCKET_NAME).upload(path, files[i], { upsert: true });
+                            if (r.error) { erros.push("Foto " + sufixo + " #" + (i+1) + ": " + r.error.message); }
+                            else urls.push(supabase.storage.from(BUCKET_NAME).getPublicUrl(path).data.publicUrl);
+                        } catch(e) { erros.push("Foto " + sufixo + " #" + (i+1) + ": " + e.message); }
+                    }
+                    return urls.length > 0 ? urls.join(", ") : null;
+                }
+
+                urlsUpload.fachada     = await uploadSimples("fachada",      "fachada");
+                urlsUpload.entrada     = await uploadSimples("entrada",       "entrada");
+                urlsUpload.patioFrente = await uploadMultiplo("patio-frente", "patio_frente");
+                urlsUpload.patioFundo  = await uploadMultiplo("patio-fundo",  "patio_fundo");
+                urlsUpload.extintores  = await uploadMultiplo("extintores",   "extintores");
+
+                // ── 3. SE HOUVE FOTOS, ATUALIZA observacoes COM OS LINKS ──────────
+                var linksFotos = [];
+                if (urlsUpload.fachada)     linksFotos.push("📸 Fachada: " + urlsUpload.fachada);
+                if (urlsUpload.entrada)     linksFotos.push("📸 Entrada: " + urlsUpload.entrada);
+                if (urlsUpload.patioFrente) linksFotos.push("📸 Pátio (entrada): " + urlsUpload.patioFrente);
+                if (urlsUpload.patioFundo)  linksFotos.push("📸 Pátio (fundo): " + urlsUpload.patioFundo);
+                if (urlsUpload.extintores)  linksFotos.push("📸 Extintores: " + urlsUpload.extintores);
+
+                if (linksFotos.length > 0) {
+                    var obsAtual  = document.getElementById("chk-obs").value || "";
+                    var obsFinal  = (obsAtual ? obsAtual + "\n\n" : "") +
+                        "— Vistoria de campo realizada em " + new Date().toLocaleDateString("pt-BR") + " —\n" +
+                        linksFotos.join("\n");
+                    await supabase.from("pods").update({ observacoes: obsFinal }).eq("podid", podAtual.podid);
+                }
+
+                // ── 4. FEEDBACK FINAL ─────────────────────────────────────────────
+                if (erros.length > 0) {
+                    mostrarToast("⚠️ Checklist salvo, mas " + erros.length + " foto(s) falharam");
+                    console.warn("Erros de upload:", erros);
+                    // Mostra detalhes dos erros em alerta simples
+                    setTimeout(function() {
+                        alert("Checklist salvo com sucesso! ✅\n\nAtenção — as seguintes fotos não foram enviadas:\n\n• " + erros.join("\n• ") + "\n\nTente enviar novamente ou informe ao suporte.");
+                    }, 500);
+                } else {
+                    mostrarToast("✅ Vistoria salva com sucesso!");
+                }
+
                 btn.style.display = "none";
                 document.getElementById("btn-confirmar-wrap").classList.remove("hidden");
 
             } catch(e) {
                 mostrarToast("❌ Erro ao salvar: " + e.message);
+                console.error("Erro salvarVistoria:", e);
                 btn.innerText = "💾 Salvar Vistoria";
                 btn.disabled  = false;
             }
