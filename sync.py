@@ -125,7 +125,7 @@ def bq_to_supabase():
             "check_cameras":       row.Security_Camera,        # agora string
             "check_guarita":       row.Has_Guardhouse,         # era Guardhouse
             "check_virar_24h":     row.Change_turn_24h,
-            "is_blacklisted":      row.Blacklist,
+            "is_blacklisted":      to_bool(row.Blacklist),
             "has_ev_charger":      row.Has_Ev_Charger,         # era Ev_Charger
             "status_ev_charger":   row.Status_Ev_Charger,      # NOVO
             "local_roteador":      row.Router_Place,
