@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Prospecção PODs - Produção</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -223,36 +225,37 @@
                     <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">⚙️ Parâmetros Técnicos e Operação</p>
                     <div class="grid grid-cols-2 gap-2 text-xs text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
 						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="chk-vagas" class="rounded text-indigo-600"> Demarcado</label>
+						
 						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="chk-gua" class="rounded text-indigo-600"> Guarita</label>
 						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="chk-24h" class="rounded text-indigo-600"> Virar 24h</label>
-						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="chk-indicador-luminoso" class="rounded text-amber-500"> 💡 Indicador Luminoso</label>
 						<label class="flex items-center gap-2 cursor-pointer col-span-2 border-t border-slate-200 pt-1.5 mt-0.5 font-bold text-indigo-700"><input type="checkbox" id="chk-overbooking" class="rounded text-indigo-600"> 📈 Permite Overbooking</label>
-						<div class="col-span-2 border-t border-slate-200 pt-1.5 mt-0.5">
-							<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">📷 Câmeras de Segurança</label>
-							<select id="chk-cam" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
-								<option value="">— Não verificado —</option>
-								<option value="Câmeras com visão total">Câmeras com visão total</option>
-								<option value="Câmeras com cobertura parcial">Câmeras com cobertura parcial</option>
-								<option value="Sem Câmeras">Sem Câmeras</option>
-							</select>
-						</div>
-						<div class="col-span-2 border-t border-slate-200 pt-1.5 mt-0.5">
-							<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">💡 Nível de Iluminação</label>
-							<select id="chk-iluminacao" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
-								<option value="">— Não verificado —</option>
-								<option value="Local Escuro">Local Escuro</option>
-								<option value="Luzes fracas ou apenas parciais">Luzes fracas ou apenas parciais</option>
-								<option value="Bem iluminado">Bem iluminado</option>
-							</select>
-						</div>
-						<div class="col-span-2 border-t border-slate-200 pt-1.5 mt-0.5">
-							<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">🔌 Status do Carregador EV</label>
-							<select id="chk-ev-charger" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
-								<option value="Não possui">Não possui</option>
-								<option value="Possui e permite o uso">Possui e permite o uso</option>
-								<option value="Permite a instalação">Permite a instalação</option>
-							</select>
-						</div>
+											<div class="col-span-2 border-t border-slate-200 pt-1.5 mt-0.5">
+						<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">📷 Câmeras de Segurança</label>
+						<select id="chk-cam" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+							<option value="">— Não verificado —</option>
+							<option value="Câmeras com visão total">Câmeras com visão total</option>
+							<option value="Câmeras com cobertura parcial">Câmeras com cobertura parcial</option>
+							<option value="Sem Câmeras">Sem Câmeras</option>
+						</select>
+					</div>
+					<div class="col-span-2 border-t border-slate-200 pt-1.5 mt-0.5">
+						<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">💡 Nível de Iluminação</label>
+						<select id="chk-iluminacao" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+							<option value="">— Não verificado —</option>
+							<option value="Local Escuro">Local Escuro</option>
+							<option value="Luzes fracas ou apenas parciais">Luzes fracas ou apenas parciais</option>
+							<option value="Bem iluminado">Bem iluminado</option>
+						</select>
+					</div>
+					<div class="col-span-2 border-t border-slate-200 pt-1.5 mt-0.5">
+						<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">🔌 Status do Carregador EV</label>
+						<select id="chk-ev-charger" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+							<option value="Não possui">Não possui</option>
+							<option value="Possui e permite o uso">Possui e permite o uso</option>
+							<option value="Permite a instalação">Permite a instalação</option>
+						</select>
+					</div>
+					<label class="flex items-center gap-2 cursor-pointer col-span-2 border-t pt-1.5 mt-0.5 font-bold text-amber-600"><input type="checkbox" id="chk-indicador-luminoso" class="rounded text-amber-500"> 💡 Indicador Luminoso</label>
 					</div>
                 </div>
 				
@@ -625,36 +628,37 @@
                     <p class="text-[10px] font-bold text-amber-600 uppercase mb-2">⚙️ Parâmetros Adicionais e Ativações</p>
 					<div class="grid grid-cols-2 gap-2 text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200">
 						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="ins-chk-demarcado" class="rounded text-emerald-600"> Demarcado</label>
+						
 						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="ins-chk-guarita" class="rounded text-emerald-600"> Guarita</label>
 						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="ins-chk-24h" class="rounded text-emerald-600"> Virar 24h</label>
-						<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="ins-chk-indicador-luminoso" class="rounded text-amber-500"> 💡 Indicador Luminoso</label>
-						<label class="flex items-center gap-2 cursor-pointer col-span-2 border-t pt-2 font-bold text-indigo-700"><input type="checkbox" id="ins-chk-overbooking" class="rounded text-indigo-600"> 📈 Permitir Estratégia de Overbooking</label>
-						<div class="col-span-2 border-t pt-2">
-							<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">📷 Câmeras de Segurança</label>
-							<select id="ins-chk-cameras" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
-								<option value="">— Não verificado —</option>
-								<option value="Câmeras com visão total">Câmeras com visão total</option>
-								<option value="Câmeras com cobertura parcial">Câmeras com cobertura parcial</option>
-								<option value="Sem Câmeras">Sem Câmeras</option>
-							</select>
-						</div>
-						<div class="col-span-2 border-t pt-2">
-							<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">💡 Nível de Iluminação</label>
-							<select id="ins-iluminacao" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
-								<option value="">— Não verificado —</option>
-								<option value="Local Escuro">Local Escuro</option>
-								<option value="Luzes fracas ou apenas parciais">Luzes fracas ou apenas parciais</option>
-								<option value="Bem iluminado">Bem iluminado</option>
-							</select>
-						</div>
-						<div class="col-span-2 border-t pt-2">
-							<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">🔌 Status do Carregador EV</label>
-							<select id="ins-chk-ev-charger" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
-								<option value="Não possui">Não possui</option>
-								<option value="Possui e permite o uso">Possui e permite o uso</option>
-								<option value="Permite a instalação">Permite a instalação</option>
-							</select>
-						</div>
+						<label class="flex items-center gap-2 cursor-pointer col-span-2 border-t pt-2 font-bold text-indigo-700"><input type="checkbox" id="ins-chk-overbooking" class="rounded text-indigo-600"> Permitir Estratégia de Overbooking</label>
+										<label class="flex items-center gap-2 cursor-pointer col-span-2 border-t pt-2 font-bold text-amber-600"><input type="checkbox" id="ins-chk-indicador-luminoso" class="rounded text-amber-500"> 💡 Indicador Luminoso</label>
+				<div class="col-span-2 border-t pt-2">
+					<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">📷 Câmeras de Segurança</label>
+					<select id="ins-chk-cameras" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+						<option value="">— Não verificado —</option>
+						<option value="Câmeras com visão total">Câmeras com visão total</option>
+						<option value="Câmeras com cobertura parcial">Câmeras com cobertura parcial</option>
+						<option value="Sem Câmeras">Sem Câmeras</option>
+					</select>
+				</div>
+				<div class="col-span-2 border-t pt-2">
+					<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">💡 Nível de Iluminação</label>
+					<select id="ins-iluminacao" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+						<option value="">— Não verificado —</option>
+						<option value="Local Escuro">Local Escuro</option>
+						<option value="Luzes fracas ou apenas parciais">Luzes fracas ou apenas parciais</option>
+						<option value="Bem iluminado">Bem iluminado</option>
+					</select>
+				</div>
+				<div class="col-span-2 border-t pt-2">
+					<label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">🔌 Status do Carregador EV</label>
+					<select id="ins-chk-ev-charger" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white text-xs">
+						<option value="Não possui">Não possui</option>
+						<option value="Possui e permite o uso">Possui e permite o uso</option>
+						<option value="Permite a instalação">Permite a instalação</option>
+					</select>
+				</div>
 					</div>
                 </div>
 
@@ -1188,6 +1192,7 @@
             document.getElementById("lbl-lav").innerText = pod.operacao_lavagem || "Não preenchido";
 
             document.getElementById("chk-vagas").checked = pod.check_demarcado || false;
+            document.getElementById("chk-cam").checked = pod.check_cameras || false;
             document.getElementById("chk-gua").checked = pod.check_guarita || false;
             document.getElementById("chk-overbooking").checked = pod.check_overbooking || false;
             
@@ -1210,11 +1215,10 @@
 			document.getElementById("p-local-starlink").value = pod.local_starlink || "";
 			document.getElementById("p-local-amplificador").value = pod.local_amplificador || "";
 			document.getElementById("p-marketing").value = pod.enxoval_marketing || "";
-			// Parâmetros técnicos — novos campos
 			setSelectValue("chk-cam",        pod.check_cameras     || "", "");
-			setSelectValue("chk-iluminacao",  pod.nivel_iluminacao  || "", "");
-			setSelectValue("chk-ev-charger",  pod.status_ev_charger || "Não possui", "Não possui");
-			document.getElementById("chk-indicador-luminoso").checked = pod.indicador_luminoso || false;
+				setSelectValue("chk-iluminacao",  pod.nivel_iluminacao  || "", "");
+				setSelectValue("chk-ev-charger",  pod.status_ev_charger || "Não possui", "Não possui");
+				document.getElementById("chk-indicador-luminoso").checked = pod.indicador_luminoso || false;
 			atualizarBotaoBlacklistUI(pod.is_blacklisted);
 
 			// 🏷️ Varre as observações e cospe os badges de hashtags na tela automaticamente
@@ -1314,7 +1318,7 @@
 			var payload = {
 				status: document.getElementById("p-status-select").value,
 				observacoes: textoObs,
-				hashtags: stringHashtags,
+				hashtags: stringHashtags, 
 				check_cameras:       document.getElementById("chk-cam").value || null,
 				nivel_iluminacao:    document.getElementById("chk-iluminacao").value || null,
 				status_ev_charger:   document.getElementById("chk-ev-charger").value || null,
@@ -1326,6 +1330,7 @@
 				enxoval_marketing: document.getElementById("p-marketing").value,
 				is_blacklisted: leadSelecionadoAtual.is_blacklisted || false,
 				check_demarcado: document.getElementById("chk-vagas").checked,
+				check_cameras: document.getElementById("chk-cam").checked,
 				check_guarita: document.getElementById("chk-gua").checked,
 				check_virar_24h: document.getElementById("chk-24h").checked,
 				check_overbooking: document.getElementById("chk-overbooking").checked,
@@ -1397,13 +1402,13 @@
                 operacao_lavagem: document.getElementById("ins-lav").value,
                 check_demarcado: document.getElementById("ins-chk-demarcado").checked,
                 check_cameras: document.getElementById("ins-chk-cameras").value || null,
+                status_ev_charger: document.getElementById("ins-chk-ev-charger").value,
+                has_ev_charger: document.getElementById("ins-chk-ev-charger").value !== "Não possui",
+                indicador_luminoso: document.getElementById("ins-chk-indicador-luminoso").checked,
+                nivel_iluminacao: document.getElementById("ins-iluminacao").value || null,
                 check_guarita: document.getElementById("ins-chk-guarita").checked,
                 check_virar_24h: document.getElementById("ins-chk-24h").checked,
                 check_overbooking: document.getElementById("ins-chk-overbooking").checked,
-				status_ev_charger: document.getElementById("ins-chk-ev-charger").value,
-				has_ev_charger: document.getElementById("ins-chk-ev-charger").value !== "Não possui",
-				indicador_luminoso: document.getElementById("ins-chk-indicador-luminoso").checked,
-				nivel_iluminacao: document.getElementById("ins-iluminacao").value || null,
                 origem_registro: "prospeccao",
                 status: "Não Contatado"
             };
@@ -1575,60 +1580,176 @@
 			}
 		}
 				
-    <!-- MODAL IMPORTAR CSV -->
-    <div id="modalImportCSV" class="modal" onclick="fecharModalSeClicarFora(event)">
-        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-            <div class="p-4 border-b flex justify-between items-center bg-teal-600 text-white">
-                <div>
-                    <h2 class="text-lg font-bold">📥 Importar PODs via CSV</h2>
-                    <p class="text-[10px] text-teal-100 uppercase font-bold">Cadastro em massa — origem: prospecção</p>
-                </div>
-                <button onclick="fecharModal('modalImportCSV')" class="text-white bg-white/10 hover:bg-white/20 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xl leading-none">×</button>
-            </div>
-            <div class="p-6 flex flex-col gap-4 overflow-y-auto max-h-[80vh]">
 
-                <!-- Instruções -->
-                <div class="bg-teal-50 border border-teal-200 rounded-xl p-4 text-xs text-teal-800">
-                    <p class="font-bold mb-2">📋 Como usar:</p>
-                    <p class="mb-1">1. Baixe o modelo CSV clicando no botão abaixo.</p>
-                    <p class="mb-1">2. Preencha os dados (colunas com * são obrigatórias).</p>
-                    <p class="mb-1">3. Salve o arquivo como <strong>.csv</strong> com separador <strong>vírgula</strong>.</p>
-                    <p>4. Faça o upload aqui. Todos os PODs serão inseridos com <strong>origem: prospecção</strong> e <strong>status: Não Contatado</strong>.</p>
-                </div>
+        // ── FLUXO DE ENCERRAMENTO ──────────────────────────────────────────────────
 
-                <!-- Botão modelo -->
-                <button onclick="baixarModeloCSV()" class="flex items-center justify-center gap-2 border-2 border-dashed border-teal-400 text-teal-700 font-bold rounded-xl py-3 text-sm hover:bg-teal-50 transition-colors">
-                    ⬇️ Baixar Modelo CSV
-                </button>
+        function iniciarFluxoEncerramento() {
+            document.getElementById("painel-encerramento").classList.remove("hidden");
+            document.getElementById("btn-pod-encerrado").classList.add("hidden");
+            document.getElementById("motivo-encerramento").value = "";
+            document.getElementById("detalhe-encerramento").value = "";
+        }
 
-                <!-- Upload -->
-                <div id="csv-drop-zone" class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50/30 transition-colors" onclick="document.getElementById('csv-file-input').click()">
-                    <p class="text-3xl mb-2">📂</p>
-                    <p class="text-sm font-bold text-slate-600">Clique para selecionar o arquivo CSV</p>
-                    <p class="text-xs text-slate-400 mt-1">ou arraste e solte aqui</p>
-                    <input type="file" id="csv-file-input" accept=".csv" style="display:none" onchange="processarArquivoCSV(this.files[0])">
-                </div>
+        function cancelarEncerramento() {
+            document.getElementById("painel-encerramento").classList.add("hidden");
+            document.getElementById("btn-pod-encerrado").classList.remove("hidden");
+        }
 
-                <!-- Preview -->
-                <div id="csv-preview" class="hidden flex flex-col gap-3">
-                    <div class="flex items-center justify-between">
-                        <p class="text-xs font-bold text-slate-600" id="csv-preview-label">0 PODs encontrados</p>
-                        <button onclick="limparCSV()" class="text-xs text-rose-500 font-bold hover:underline">✕ Limpar</button>
-                    </div>
-                    <div class="overflow-x-auto border border-slate-200 rounded-xl max-h-48">
-                        <table class="w-full text-[10px] border-collapse" id="csv-preview-table"></table>
-                    </div>
-                    <div id="csv-erros" class="hidden bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-700"></div>
-                    <button onclick="importarCSVBanco()" id="btn-importar-csv" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md">
-                        🚀 Importar todos para o banco
-                    </button>
-                </div>
+        function abrirConfirmacaoEncerramento() {
+            var motivo = document.getElementById("motivo-encerramento").value;
+            var detalhe = document.getElementById("detalhe-encerramento").value.trim();
+            if (!motivo) { alert("Por favor, selecione o motivo do encerramento."); return; }
+            var nomePod = leadSelecionadoAtual ? (leadSelecionadoAtual.nome_pod || "POD #" + leadSelecionadoAtual.podid) : "—";
+            document.getElementById("conf-nome-pod").innerText = nomePod;
+            document.getElementById("conf-motivo").innerText = motivo;
+            document.getElementById("conf-detalhe").innerText = detalhe || "Nenhum detalhe informado.";
+            document.getElementById("chk-ciente").checked = false;
+            abrirModal("modalConfirmacaoEncerramento");
+        }
 
-            </div>
-        </div>
-    </div>
+        async function executarEncerramento() {
+            if (!document.getElementById("chk-ciente").checked) { alert("Marque a caixa de confirmação para prosseguir."); return; }
+            if (!leadSelecionadoAtual || !window.supabaseClient) return;
+            var btn = document.getElementById("btn-executar-encerramento");
+            btn.innerText = "⏳ Salvando..."; btn.disabled = true;
+            var motivo  = document.getElementById("motivo-encerramento").value;
+            var detalhe = document.getElementById("detalhe-encerramento").value.trim();
+            var agora   = new Date().toISOString();
+            var payload = { status: "Inativo", motivo_encerramento: motivo, detalhe_encerramento: detalhe || null, data_encerramento: agora };
+            var res = await window.supabaseClient.from("pods").update(payload).eq("podid", leadSelecionadoAtual.podid);
+            if (res.error) { alert("Erro ao salvar encerramento: " + res.error.message); btn.innerText = "🔒 Confirmar Encerramento"; btn.disabled = false; return; }
+            Object.assign(leadSelecionadoAtual, payload);
+            var item = todosOsLeads.find(function(p) { return p.podid === leadSelecionadoAtual.podid; });
+            if (item) Object.assign(item, payload);
+            fecharModal("modalConfirmacaoEncerramento");
+            cancelarEncerramento();
+            renderizarTabela();
+            var sel = document.getElementById("p-status-select");
+            if (sel) sel.value = "Inativo";
+            alert("✅ Encerramento registrado com sucesso. POD marcado como Inativo.");
+        }
 
-    
+        // ── CSV IMPORT ──────────────────────────────────────────────────────────────
+
+        var csvDadosParaImportar = [];
+
+        var CSV_COLUNAS = [
+            { key: "nome_pod",            label: "Nome do POD *",                    obrigatorio: true  },
+            { key: "tipo_pod",            label: "Tipo de POD",                      obrigatorio: false },
+            { key: "endereco_completo",   label: "Endereço Completo",                obrigatorio: false },
+            { key: "bairro",              label: "Bairro *",                         obrigatorio: true  },
+            { key: "cidade",              label: "Cidade",                           obrigatorio: false },
+            { key: "distrito",            label: "Distrito",                         obrigatorio: false },
+            { key: "estado",              label: "Estado",                           obrigatorio: false },
+            { key: "latitude",            label: "Latitude *",                       obrigatorio: true  },
+            { key: "longitude",           label: "Longitude *",                      obrigatorio: true  },
+            { key: "h3_cell_res_8",       label: "Célula H3",                        obrigatorio: false },
+            { key: "capacidade_total",    label: "Vagas Negociadas (Total) *",       obrigatorio: true  },
+            { key: "vagas_disponiveis",   label: "Vagas Disponíveis (X)",            obrigatorio: false },
+            { key: "vagas_estimadas",     label: "Estimativa Vagas IPTU",            obrigatorio: false },
+            { key: "contato_nome",        label: "Nome do Contato",                  obrigatorio: false },
+            { key: "telefone",            label: "Telefone",                         obrigatorio: false },
+            { key: "email",               label: "E-mail",                           obrigatorio: false },
+            { key: "site",                label: "Website / URL",                    obrigatorio: false },
+            { key: "valor_mensalista",    label: "Valor Mensalista (R$)",            obrigatorio: false },
+            { key: "parkinglotprice",     label: "Preço Total Lote (R$)",            obrigatorio: false },
+            { key: "preco_ofertado",      label: "Preço Ofertado (R$)",              obrigatorio: false },
+            { key: "contraproposta",      label: "Contraproposta (R$)",              obrigatorio: false },
+            { key: "entrada_veiculos",    label: "Entrada Veículos",                 obrigatorio: false },
+            { key: "entrada_pedestres",   label: "Entrada Pedestres",                obrigatorio: false },
+            { key: "tipo_cobertura",      label: "Tipo de Cobertura",                obrigatorio: false },
+            { key: "pavimento",           label: "Pavimento",                        obrigatorio: false },
+            { key: "configuracao_vagas",  label: "Configuração das Vagas",           obrigatorio: false },
+            { key: "protecao_incendio",   label: "Proteção contra Incêndio",         obrigatorio: false },
+            { key: "operacao_lavagem",    label: "Permite Operação de Lavagem",      obrigatorio: false },
+            { key: "check_demarcado",     label: "Vagas Demarcadas (TRUE/FALSE)",    obrigatorio: false },
+            { key: "check_cameras",       label: "Câmeras de Segurança",             obrigatorio: false },
+            { key: "check_guarita",       label: "Guarita (TRUE/FALSE)",             obrigatorio: false },
+            { key: "check_virar_24h",     label: "Virar 24h (TRUE/FALSE)",           obrigatorio: false },
+            { key: "check_overbooking",   label: "Permite Overbooking (TRUE/FALSE)", obrigatorio: false },
+            { key: "has_ev_charger",      label: "Possui EV Charger (TRUE/FALSE)",   obrigatorio: false },
+            { key: "status_ev_charger",   label: "Status EV Charger",                obrigatorio: false },
+            { key: "indicador_luminoso",  label: "Indicador Luminoso (TRUE/FALSE)",  obrigatorio: false },
+            { key: "nivel_iluminacao",    label: "Nível de Iluminação",              obrigatorio: false },
+            { key: "local_roteador",      label: "Local do Roteador",                obrigatorio: false },
+            { key: "local_starlink",      label: "Local da Starlink",                obrigatorio: false },
+            { key: "local_amplificador",  label: "Local do Amplificador",            obrigatorio: false },
+            { key: "enxoval_marketing",   label: "Enxoval de Marketing",             obrigatorio: false },
+            { key: "observacoes",         label: "Observações",                      obrigatorio: false },
+        ];
+
+        function baixarModeloCSV() {
+            var header = CSV_COLUNAS.map(function(c) { return '"' + c.label + '"'; }).join(",");
+            var blob = new Blob([header + "\n"], { type: "text/csv;charset=utf-8;" });
+            var url = URL.createObjectURL(blob); var a = document.createElement("a");
+            a.href = url; a.download = "modelo_importacao_pods.csv"; a.click(); URL.revokeObjectURL(url);
+        }
+
+        function processarArquivoCSV(file) {
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var texto = e.target.result;
+                var linhas = texto.split(/\r?\n/).filter(function(l) { return l.trim() !== ""; });
+                if (linhas.length < 2) { alert("CSV vazio ou sem dados além do cabeçalho."); return; }
+                var headers = linhas[0].split(",").map(function(h) { return h.replace(/"/g, "").trim(); });
+                var labelParaKey = {}; CSV_COLUNAS.forEach(function(c) { labelParaKey[c.label] = c.key; });
+                var mapa = {}; headers.forEach(function(h, i) { mapa[labelParaKey[h] || h] = i; });
+                var dados = []; var erros = [];
+                for (var li = 1; li < linhas.length; li++) {
+                    var cols = linhas[li].split(",").map(function(c) { return c.replace(/^"|"$/g,"").trim(); });
+                    var obj = { origem_registro: "prospeccao", status: "Não Contatado" };
+                    CSV_COLUNAS.forEach(function(col) {
+                        var idx = mapa[col.key]; if (idx === undefined || cols[idx] === undefined) return;
+                        var val = cols[idx].trim();
+                        if (["check_demarcado","check_guarita","check_virar_24h","check_overbooking","has_ev_charger","indicador_luminoso"].indexOf(col.key) >= 0) obj[col.key] = val.toLowerCase() === "true";
+                        else if (["capacidade_total","vagas_disponiveis","vagas_estimadas"].indexOf(col.key) >= 0) obj[col.key] = parseInt(val) || 0;
+                        else if (["latitude","longitude"].indexOf(col.key) >= 0) obj[col.key] = parseFloat(val) || null;
+                        else obj[col.key] = val || null;
+                    });
+                    var faltando = CSV_COLUNAS.filter(function(c) { return c.obrigatorio && !obj[c.key]; }).map(function(c) { return c.label.replace(" *",""); });
+                    if (faltando.length > 0) erros.push("Linha " + (li+1) + ": falta " + faltando.join(", ")); else dados.push(obj);
+                }
+                csvDadosParaImportar = dados; renderizarPreviewCSV(dados, erros);
+            };
+            reader.readAsText(file, "UTF-8");
+        }
+
+        function renderizarPreviewCSV(dados, erros) {
+            document.getElementById("csv-preview").classList.remove("hidden");
+            document.getElementById("csv-preview-label").innerText = dados.length + " POD(s) prontos para importar";
+            var cols = ["nome_pod","bairro","capacidade_total","latitude","longitude"];
+            var t = "<thead class='bg-slate-100'><tr>" + cols.map(function(k){ return "<th class='p-2 text-left font-bold text-slate-500 border-b'>" + k + "</th>"; }).join("") + "</tr></thead><tbody>" + dados.slice(0,5).map(function(r){ return "<tr>" + cols.map(function(k){ return "<td class='p-2'>" + (r[k]||"-") + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody>";
+            document.getElementById("csv-preview-table").innerHTML = t;
+            var ed = document.getElementById("csv-erros");
+            if (erros.length) { ed.classList.remove("hidden"); ed.innerHTML = "<p class='font-bold mb-1'>⚠️ " + erros.length + " linha(s) ignorada(s):</p>" + erros.slice(0,10).map(function(e){ return "<p>• " + e + "</p>"; }).join(""); } else ed.classList.add("hidden");
+            document.getElementById("btn-importar-csv").disabled = dados.length === 0;
+        }
+
+        function limparCSV() { csvDadosParaImportar = []; document.getElementById("csv-preview").classList.add("hidden"); document.getElementById("csv-file-input").value = ""; }
+
+        async function importarCSVBanco() {
+            if (!window.supabaseClient || !csvDadosParaImportar.length) return;
+            var btn = document.getElementById("btn-importar-csv"); btn.innerText = "⏳ Importando..."; btn.disabled = true;
+            var errosImport = 0;
+            for (var i = 0; i < csvDadosParaImportar.length; i += 50) {
+                var res = await window.supabaseClient.from("pods").insert(csvDadosParaImportar.slice(i, i+50));
+                if (res.error) { errosImport += 50; console.error(res.error); }
+            }
+            fecharModal("modalImportCSV"); limparCSV(); puxarTodaABaseDeDados();
+            alert(errosImport > 0 ? "⚠️ Parcial: " + (csvDadosParaImportar.length - errosImport) + " inseridos, " + errosImport + " falharam." : "✅ " + csvDadosParaImportar.length + " POD(s) importados!");
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            var z = document.getElementById("csv-drop-zone"); if (!z) return;
+            z.addEventListener("dragover", function(e) { e.preventDefault(); z.classList.add("border-teal-400"); });
+            z.addEventListener("dragleave", function() { z.classList.remove("border-teal-400"); });
+            z.addEventListener("drop", function(e) { e.preventDefault(); z.classList.remove("border-teal-400"); var f = e.dataTransfer.files[0]; if (f && f.name.endsWith(".csv")) processarArquivoCSV(f); else alert("Envie um .csv"); });
+        });
+
+        inicializarApp();
+    </script>
+
     <!-- MODAL CONFIRMAÇÃO ENCERRAMENTO -->
     <div id="modalConfirmacaoEncerramento" class="modal" onclick="fecharModalSeClicarFora(event)">
         <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
@@ -1650,294 +1771,53 @@
                     <span class="text-xs text-slate-700 font-semibold">Estou ciente e confirmo o encerramento deste contrato.</span>
                 </label>
                 <div class="flex gap-3">
-                    <button onclick="fecharModal('modalConfirmacaoEncerramento')" class="flex-1 border border-slate-300 text-slate-600 font-bold py-2.5 rounded-xl text-sm hover:bg-slate-50 transition-colors">
-                        Cancelar
-                    </button>
-                    <button onclick="executarEncerramento()" id="btn-executar-encerramento" class="flex-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl text-sm transition-colors">
-                        🔒 Confirmar Encerramento
-                    </button>
+                    <button onclick="fecharModal('modalConfirmacaoEncerramento')" class="flex-1 border border-slate-300 text-slate-600 font-bold py-2.5 rounded-xl text-sm hover:bg-slate-50 transition-colors">Cancelar</button>
+                    <button onclick="executarEncerramento()" id="btn-executar-encerramento" class="flex-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl text-sm transition-colors">🔒 Confirmar Encerramento</button>
                 </div>
             </div>
         </div>
     </div>
 
-<script>
-        // ── CSV IMPORT ─────────────────────────────────────────────────────────────
 
-        var csvDadosParaImportar = [];
+    <!-- MODAL IMPORTAR CSV -->
+    <div id="modalImportCSV" class="modal" onclick="fecharModalSeClicarFora(event)">
+        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center bg-teal-600 text-white">
+                <div>
+                    <h2 class="text-lg font-bold">📥 Importar PODs via CSV</h2>
+                    <p class="text-[10px] text-teal-100 uppercase font-bold">Cadastro em massa — origem: prospecção</p>
+                </div>
+                <button onclick="fecharModal('modalImportCSV')" class="text-white bg-white/10 hover:bg-white/20 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xl leading-none">×</button>
+            </div>
+            <div class="p-6 flex flex-col gap-4 overflow-y-auto max-h-[80vh]">
+                <div class="bg-teal-50 border border-teal-200 rounded-xl p-4 text-xs text-teal-800">
+                    <p class="font-bold mb-2">📋 Como usar:</p>
+                    <p class="mb-1">1. Baixe o modelo CSV clicando no botão abaixo.</p>
+                    <p class="mb-1">2. Preencha os dados (colunas com * são obrigatórias).</p>
+                    <p class="mb-1">3. Salve o arquivo como <strong>.csv</strong> com separador <strong>vírgula</strong>.</p>
+                    <p>4. Faça o upload aqui. Todos os PODs serão inseridos com <strong>origem: prospecção</strong> e <strong>status: Não Contatado</strong>.</p>
+                </div>
+                <button onclick="baixarModeloCSV()" class="flex items-center justify-center gap-2 border-2 border-dashed border-teal-400 text-teal-700 font-bold rounded-xl py-3 text-sm hover:bg-teal-50 transition-colors">⬇️ Baixar Modelo CSV</button>
+                <div id="csv-drop-zone" class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50/30 transition-colors" onclick="document.getElementById('csv-file-input').click()">
+                    <p class="text-3xl mb-2">📂</p>
+                    <p class="text-sm font-bold text-slate-600">Clique para selecionar o arquivo CSV</p>
+                    <p class="text-xs text-slate-400 mt-1">ou arraste e solte aqui</p>
+                    <input type="file" id="csv-file-input" accept=".csv" style="display:none" onchange="processarArquivoCSV(this.files[0])">
+                </div>
+                <div id="csv-preview" class="hidden flex flex-col gap-3">
+                    <div class="flex items-center justify-between">
+                        <p class="text-xs font-bold text-slate-600" id="csv-preview-label">0 PODs encontrados</p>
+                        <button onclick="limparCSV()" class="text-xs text-rose-500 font-bold hover:underline">✕ Limpar</button>
+                    </div>
+                    <div class="overflow-x-auto border border-slate-200 rounded-xl max-h-48">
+                        <table class="w-full text-[10px] border-collapse" id="csv-preview-table"></table>
+                    </div>
+                    <div id="csv-erros" class="hidden bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-700"></div>
+                    <button onclick="importarCSVBanco()" id="btn-importar-csv" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md">🚀 Importar todos para o banco</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        var CSV_COLUNAS = [
-            { key: "nome_pod",            label: "Nome do POD *",                  obrigatorio: true  },
-            { key: "tipo_pod",            label: "Tipo de POD",                    obrigatorio: false },
-            { key: "endereco_completo",   label: "Endereço Completo",              obrigatorio: false },
-            { key: "bairro",              label: "Bairro *",                       obrigatorio: true  },
-            { key: "cidade",              label: "Cidade",                         obrigatorio: false },
-            { key: "distrito",            label: "Distrito",                       obrigatorio: false },
-            { key: "estado",              label: "Estado",                         obrigatorio: false },
-            { key: "latitude",            label: "Latitude *",                     obrigatorio: true  },
-            { key: "longitude",           label: "Longitude *",                    obrigatorio: true  },
-            { key: "h3_cell_res_8",       label: "Célula H3",                      obrigatorio: false },
-            { key: "capacidade_total",    label: "Vagas Negociadas (Total) *",     obrigatorio: true  },
-            { key: "vagas_disponiveis",   label: "Vagas Disponíveis (X)",          obrigatorio: false },
-            { key: "vagas_estimadas",     label: "Estimativa Vagas IPTU",          obrigatorio: false },
-            { key: "contato_nome",        label: "Nome do Contato",                obrigatorio: false },
-            { key: "telefone",            label: "Telefone",                       obrigatorio: false },
-            { key: "email",               label: "E-mail",                         obrigatorio: false },
-            { key: "site",                label: "Website / URL",                  obrigatorio: false },
-            { key: "valor_mensalista",    label: "Valor Mensalista (R$)",          obrigatorio: false },
-            { key: "parkinglotprice",     label: "Preço Total Lote (R$)",          obrigatorio: false },
-            { key: "preco_ofertado",      label: "Preço Ofertado (R$)",            obrigatorio: false },
-            { key: "contraproposta",      label: "Contraproposta (R$)",            obrigatorio: false },
-            { key: "entrada_veiculos",    label: "Entrada Veículos",               obrigatorio: false },
-            { key: "entrada_pedestres",   label: "Entrada Pedestres",              obrigatorio: false },
-            { key: "tipo_cobertura",      label: "Tipo de Cobertura",              obrigatorio: false },
-            { key: "pavimento",           label: "Pavimento",                      obrigatorio: false },
-            { key: "configuracao_vagas",  label: "Configuração das Vagas",         obrigatorio: false },
-            { key: "protecao_incendio",   label: "Proteção contra Incêndio",       obrigatorio: false },
-            { key: "operacao_lavagem",    label: "Permite Operação de Lavagem",    obrigatorio: false },
-            { key: "check_demarcado",     label: "Vagas Demarcadas (TRUE/FALSE)",  obrigatorio: false },
-            { key: "check_cameras",       label: "Câmeras de Segurança",           obrigatorio: false },
-            { key: "check_guarita",       label: "Guarita (TRUE/FALSE)",           obrigatorio: false },
-            { key: "check_virar_24h",     label: "Virar 24h (TRUE/FALSE)",         obrigatorio: false },
-            { key: "check_overbooking",   label: "Permite Overbooking (TRUE/FALSE)", obrigatorio: false },
-            { key: "has_ev_charger",      label: "Possui EV Charger (TRUE/FALSE)", obrigatorio: false },
-            { key: "status_ev_charger",   label: "Status EV Charger",              obrigatorio: false },
-            { key: "indicador_luminoso",  label: "Indicador Luminoso (TRUE/FALSE)", obrigatorio: false },
-            { key: "nivel_iluminacao",    label: "Nível de Iluminação",            obrigatorio: false },
-            { key: "local_roteador",      label: "Local do Roteador",              obrigatorio: false },
-            { key: "local_starlink",      label: "Local da Starlink",              obrigatorio: false },
-            { key: "local_amplificador",  label: "Local do Amplificador",          obrigatorio: false },
-            { key: "enxoval_marketing",   label: "Enxoval de Marketing",           obrigatorio: false },
-            { key: "observacoes",         label: "Observações",                    obrigatorio: false },
-        ];
-
-        function baixarModeloCSV() {
-            var header = CSV_COLUNAS.map(function(c) { return '"' + c.label + '"'; }).join(",");
-            var blob = new Blob([header + "\n"], { type: "text/csv;charset=utf-8;" });
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement("a"); a.href = url;
-            a.download = "modelo_importacao_pods.csv";
-            a.click(); URL.revokeObjectURL(url);
-        }
-
-        function processarArquivoCSV(file) {
-            if (!file) return;
-            var reader = new FileReader();
-            reader.onload = function(e) {
-                var texto = e.target.result;
-                var linhas = texto.split(/\r?\n/).filter(function(l) { return l.trim() !== ""; });
-                if (linhas.length < 2) { alert("CSV vazio ou sem dados além do cabeçalho."); return; }
-
-                var headers = linhas[0].split(",").map(function(h) { return h.replace(/"/g, "").trim(); });
-
-                // Mapeia label → key
-                var labelParaKey = {};
-                CSV_COLUNAS.forEach(function(c) { labelParaKey[c.label] = c.key; });
-
-                // Detecta índice de cada coluna pelo label OU pelo key diretamente
-                var mapa = {};
-                headers.forEach(function(h, i) {
-                    var key = labelParaKey[h] || h;
-                    mapa[key] = i;
-                });
-
-                var dados = [];
-                var erros = [];
-
-                for (var li = 1; li < linhas.length; li++) {
-                    var cols = linhas[li].match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || linhas[li].split(",");
-                    cols = cols.map(function(c) { return c.replace(/^"|"$/g, "").trim(); });
-
-                    var obj = { origem_registro: "prospeccao", status: "Não Contatado" };
-                    CSV_COLUNAS.forEach(function(col) {
-                        var idx = mapa[col.key];
-                        if (idx !== undefined && cols[idx] !== undefined) {
-                            var val = cols[idx].trim();
-                            if (col.key === "check_demarcado" || col.key === "check_guarita" ||
-                                col.key === "check_virar_24h" || col.key === "check_overbooking" ||
-                                col.key === "has_ev_charger"  || col.key === "indicador_luminoso") {
-                                obj[col.key] = val.toLowerCase() === "true";
-                            } else if (col.key === "capacidade_total" || col.key === "vagas_disponiveis" || col.key === "vagas_estimadas") {
-                                obj[col.key] = parseInt(val) || 0;
-                            } else if (col.key === "latitude" || col.key === "longitude") {
-                                obj[col.key] = parseFloat(val) || null;
-                            } else {
-                                obj[col.key] = val || null;
-                            }
-                        }
-                    });
-
-                    // Valida obrigatórios
-                    var faltando = CSV_COLUNAS.filter(function(c) { return c.obrigatorio && !obj[c.key]; }).map(function(c) { return c.label.replace(" *", ""); });
-                    if (faltando.length > 0) {
-                        erros.push("Linha " + (li + 1) + ": falta " + faltando.join(", "));
-                    } else {
-                        dados.push(obj);
-                    }
-                }
-
-                csvDadosParaImportar = dados;
-                renderizarPreviewCSV(dados, erros);
-            };
-            reader.readAsText(file, "UTF-8");
-        }
-
-        function renderizarPreviewCSV(dados, erros) {
-            var preview = document.getElementById("csv-preview");
-            preview.classList.remove("hidden");
-            document.getElementById("csv-preview-label").innerText = dados.length + " POD(s) prontos para importar";
-
-            // Tabela preview (primeiras 5 linhas)
-            var colsVisiveis = ["nome_pod", "bairro", "capacidade_total", "latitude", "longitude"];
-            var theadHtml = "<thead class='bg-slate-100'><tr>" + colsVisiveis.map(function(k) { return "<th class='p-2 text-left font-bold text-slate-500 border-b'>" + k + "</th>"; }).join("") + "</tr></thead>";
-            var tbodyHtml = "<tbody>" + dados.slice(0, 5).map(function(r) {
-                return "<tr class='border-b border-slate-100'>" + colsVisiveis.map(function(k) { return "<td class='p-2 text-slate-700 whitespace-nowrap'>" + (r[k] || "-") + "</td>"; }).join("") + "</tr>";
-            }).join("") + (dados.length > 5 ? "<tr><td colspan='5' class='p-2 text-slate-400 italic'>... e mais " + (dados.length - 5) + " linhas</td></tr>" : "") + "</tbody>";
-            document.getElementById("csv-preview-table").innerHTML = theadHtml + tbodyHtml;
-
-            var errosDiv = document.getElementById("csv-erros");
-            if (erros.length > 0) {
-                errosDiv.classList.remove("hidden");
-                errosDiv.innerHTML = "<p class='font-bold mb-1'>⚠️ " + erros.length + " linha(s) ignorada(s) por dados obrigatórios faltando:</p>" + erros.slice(0, 10).map(function(e) { return "<p>• " + e + "</p>"; }).join("");
-            } else {
-                errosDiv.classList.add("hidden");
-            }
-
-            document.getElementById("btn-importar-csv").disabled = dados.length === 0;
-        }
-
-        function limparCSV() {
-            csvDadosParaImportar = [];
-            document.getElementById("csv-preview").classList.add("hidden");
-            document.getElementById("csv-file-input").value = "";
-        }
-
-        async function importarCSVBanco() {
-            if (!window.supabaseClient || csvDadosParaImportar.length === 0) return;
-            var btn = document.getElementById("btn-importar-csv");
-            btn.innerText = "⏳ Importando...";
-            btn.disabled = true;
-
-            // Insere em lotes de 50
-            var lote = 50; var errosImport = 0;
-            for (var i = 0; i < csvDadosParaImportar.length; i += lote) {
-                var bloco = csvDadosParaImportar.slice(i, i + lote);
-                var res = await window.supabaseClient.from("pods").insert(bloco);
-                if (res.error) { errosImport += bloco.length; console.error("Erro lote CSV:", res.error); }
-            }
-
-            fecharModal("modalImportCSV");
-            limparCSV();
-            puxarTodaABaseDeDados();
-
-            var total = csvDadosParaImportar.length;
-            if (errosImport > 0) {
-                alert("⚠️ Importação parcial: " + (total - errosImport) + " inseridos, " + errosImport + " falharam. Verifique o console.");
-            } else {
-                alert("✅ " + total + " POD(s) importados com sucesso!");
-            }
-        }
-
-        // Drag-and-drop na zona de upload CSV
-        document.addEventListener("DOMContentLoaded", function() {
-            var zone = document.getElementById("csv-drop-zone");
-            if (!zone) return;
-            zone.addEventListener("dragover", function(e) { e.preventDefault(); zone.classList.add("border-teal-400", "bg-teal-50/30"); });
-            zone.addEventListener("dragleave", function() { zone.classList.remove("border-teal-400", "bg-teal-50/30"); });
-            zone.addEventListener("drop", function(e) {
-                e.preventDefault();
-                zone.classList.remove("border-teal-400", "bg-teal-50/30");
-                var file = e.dataTransfer.files[0];
-                if (file && file.name.endsWith(".csv")) processarArquivoCSV(file);
-                else alert("Por favor, envie um arquivo .csv");
-            });
-        });
-    </script>
-
-
-        // ── FLUXO DE ENCERRAMENTO ──────────────────────────────────────────────────
-
-        function iniciarFluxoEncerramento() {
-            document.getElementById("painel-encerramento").classList.remove("hidden");
-            document.getElementById("btn-pod-encerrado").classList.add("hidden");
-            document.getElementById("motivo-encerramento").value = "";
-            document.getElementById("detalhe-encerramento").value = "";
-        }
-
-        function cancelarEncerramento() {
-            document.getElementById("painel-encerramento").classList.add("hidden");
-            document.getElementById("btn-pod-encerrado").classList.remove("hidden");
-        }
-
-        function abrirConfirmacaoEncerramento() {
-            var motivo = document.getElementById("motivo-encerramento").value;
-            var detalhe = document.getElementById("detalhe-encerramento").value.trim();
-
-            if (!motivo) {
-                alert("Por favor, selecione o motivo do encerramento.");
-                return;
-            }
-
-            var nomePod = leadSelecionadoAtual ? (leadSelecionadoAtual.nome_pod || "POD #" + leadSelecionadoAtual.podid) : "—";
-            document.getElementById("conf-nome-pod").innerText = nomePod;
-            document.getElementById("conf-motivo").innerText = motivo;
-            document.getElementById("conf-detalhe").innerText = detalhe || "Nenhum detalhe informado.";
-            document.getElementById("chk-ciente").checked = false;
-
-            abrirModal("modalConfirmacaoEncerramento");
-        }
-
-        async function executarEncerramento() {
-            if (!document.getElementById("chk-ciente").checked) {
-                alert("Marque a caixa de confirmação para prosseguir.");
-                return;
-            }
-            if (!leadSelecionadoAtual || !window.supabaseClient) return;
-
-            var btn = document.getElementById("btn-executar-encerramento");
-            btn.innerText = "⏳ Salvando...";
-            btn.disabled = true;
-
-            var motivo  = document.getElementById("motivo-encerramento").value;
-            var detalhe = document.getElementById("detalhe-encerramento").value.trim();
-            var agora   = new Date().toISOString();
-
-            var payload = {
-                status:                "Inativo",
-                motivo_encerramento:   motivo,
-                detalhe_encerramento:  detalhe || null,
-                data_encerramento:     agora
-            };
-
-            var res = await window.supabaseClient
-                .from("pods")
-                .update(payload)
-                .eq("podid", leadSelecionadoAtual.podid);
-
-            if (res.error) {
-                alert("Erro ao salvar encerramento: " + res.error.message);
-                btn.innerText = "🔒 Confirmar Encerramento";
-                btn.disabled = false;
-                return;
-            }
-
-            // Atualiza cache local
-            Object.assign(leadSelecionadoAtual, payload);
-            var item = todosOsLeads.find(function(p) { return p.podid === leadSelecionadoAtual.podid; });
-            if (item) Object.assign(item, payload);
-
-            fecharModal("modalConfirmacaoEncerramento");
-            cancelarEncerramento();
-            renderizarTabela();
-
-            // Feedback visual no select de status da ficha
-            var sel = document.getElementById("p-status-select");
-            if (sel) sel.value = "Inativo";
-
-            alert("✅ Encerramento registrado com sucesso. POD marcado como Inativo.");
-        }
-
-        inicializarApp();
-    </script>
 </body>
 </html>
