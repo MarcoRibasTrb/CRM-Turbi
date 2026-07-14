@@ -421,8 +421,8 @@
             }
 
             // Separar pendentes e revisados
-            var pendentes  = pods.filter(function(p) { return !revisadosLocal.includes(p.podid); });
-            var revisados  = pods.filter(function(p) { return revisadosLocal.includes(p.podid); });
+            var pendentes  = pods.filter(function(p) { return !estaRevisado(p); });
+            var revisados  = pods.filter(function(p) { return  estaRevisado(p); });
 
             var html = "";
 
@@ -439,10 +439,14 @@
             container.innerHTML = html;
         }
 
+        function estaRevisado(p) {
+            return revisadosLocal.includes(p.podid) || !!p.vistoria_fim;
+        }
+
         function buildCard(p, revisado) {
             var bairroHtml = p.bairro ? "<span class='badge-bairro'>" + p.bairro + "</span>" : "";
             var vagas = Math.abs(p.capacidade_total || p.vagas_estimadas || 0);
-            var revisadoClass = revisado ? " revisado" : "";
+            revisado = estaRevisado(p); var revisadoClass = revisado ? " revisado" : "";
             var revisadoBadge = revisado ? "<span class='text-[10px] text-emerald-600 font-bold'>✅ Revisado</span>" : "<span class='text-[10px] text-slate-400'>Toque para abrir →</span>";
             return "<div class='pod-card" + revisadoClass + " mb-2' onclick='abrirPod(" + p.podid + ")'>" +
                 "<div class='flex justify-between items-start gap-2'>" +
@@ -462,7 +466,7 @@
         }
 
         function atualizarContadorHeader() {
-            var revisados = masterPods.filter(function(p) { return revisadosLocal.includes(p.podid); }).length;
+            var revisados = masterPods.filter(function(p) { return estaRevisado(p); }).length;
             var pendentes = masterPods.length - revisados;
             document.getElementById("header-counter").classList.remove("hidden");
             document.getElementById("hdr-revisados").innerText = revisados + " revisados";
