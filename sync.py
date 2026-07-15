@@ -308,20 +308,20 @@ def supabase_to_bq():
             T.Has_Guardhouse             = S.Has_Guardhouse,
             T.Change_turn_24h            = S.Change_turn_24h,
             T.Has_Ev_Charger             = S.Has_Ev_Charger,
-            T.Status_Ev_Charger          = COALESCE(S.Status_Ev_Charger,          T.Status_Ev_Charger),
             T.Router_Place               = S.Router_Place,
             T.Amplifier_Place            = S.Amplifier_Place,
             T.Starkink_Place             = S.Starkink_Place,
             T.Marketing_Options          = S.Marketing_Options,
-            T.Light_Level                = COALESCE(S.Light_Level,                T.Light_Level),
-            T.Cover_Type                 = COALESCE(S.Cover_Type,                 T.Cover_Type),
-            T.Floor_Type                 = COALESCE(S.Floor_Type,                 T.Floor_Type),
-            T.Fire_Protection            = COALESCE(S.Fire_Protection,            T.Fire_Protection),
-            T.Is_Designated_Parking_Space = COALESCE(S.Is_Designated_Parking_Space, T.Is_Designated_Parking_Space),
-            T.Security_Camera            = COALESCE(S.Security_Camera,            T.Security_Camera),
-            T.Motivo_Encerramento        = COALESCE(S.Motivo_Encerramento,        T.Motivo_Encerramento),
-            T.Detalhe_Encerramento       = COALESCE(S.Detalhe_Encerramento,       T.Detalhe_Encerramento),
-            T.Data_Encerramento          = COALESCE(S.Data_Encerramento,          T.Data_Encerramento)
+            T.Cover_Type                 = CASE WHEN S.Cover_Type IS NOT NULL AND S.Cover_Type != '' THEN S.Cover_Type ELSE T.Cover_Type END,
+            T.Floor_Type                 = CASE WHEN S.Floor_Type IS NOT NULL AND S.Floor_Type != '' THEN S.Floor_Type ELSE T.Floor_Type END,
+            T.Fire_Protection            = CASE WHEN S.Fire_Protection IS NOT NULL AND S.Fire_Protection != '' THEN S.Fire_Protection ELSE T.Fire_Protection END,
+            T.Is_Designated_Parking_Space = CASE WHEN S.Is_Designated_Parking_Space IS NOT NULL THEN S.Is_Designated_Parking_Space ELSE T.Is_Designated_Parking_Space END,
+            T.Security_Camera            = CASE WHEN S.Security_Camera IS NOT NULL AND S.Security_Camera != '' THEN S.Security_Camera ELSE T.Security_Camera END,
+            T.Status_Ev_Charger          = CASE WHEN S.Status_Ev_Charger IS NOT NULL AND S.Status_Ev_Charger != '' THEN S.Status_Ev_Charger ELSE T.Status_Ev_Charger END,
+            T.Light_Level                = CASE WHEN S.Light_Level IS NOT NULL AND S.Light_Level != '' THEN S.Light_Level ELSE T.Light_Level END,
+            T.Motivo_Encerramento        = CASE WHEN S.Motivo_Encerramento IS NOT NULL AND S.Motivo_Encerramento != '' THEN S.Motivo_Encerramento ELSE T.Motivo_Encerramento END,
+            T.Detalhe_Encerramento       = CASE WHEN S.Detalhe_Encerramento IS NOT NULL AND S.Detalhe_Encerramento != '' THEN S.Detalhe_Encerramento ELSE T.Detalhe_Encerramento END,
+            T.Data_Encerramento          = CASE WHEN S.Data_Encerramento IS NOT NULL THEN S.Data_Encerramento ELSE T.Data_Encerramento END
     """
     client.query(merge_query).result()
     
