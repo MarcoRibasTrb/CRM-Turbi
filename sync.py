@@ -37,7 +37,7 @@ def bq_to_supabase():
     limit = 1000
     offset = 0
     while True:
-        res = supabase.table("pods").select("id_friday, nome_pod, status").range(offset, offset + limit - 1).execute()
+        res = supabase.table("pods").select("id_friday, nome_pod, status, vistoria_fim").range(offset, offset + limit - 1).execute()
         data = res.data
         supabase_records.extend(data)
         if len(data) < limit:
@@ -91,11 +91,14 @@ def bq_to_supabase():
             match = supa_by_nome[bq_name_lower]
             match_type = "nome"
 
+        # Se o POD já foi vistoriado (vistoria_fim preenchido), protege os campos de vistoria
+        ja_vistoriado = match and match.get("vistoria_fim")
+
         data = {
             "id_friday":           row.Id,
             "nome_pod":            row.Name,
             "status":              row.Status,
-            "indicador_luminoso":  row.Has_Light_Indicator,   # era Light_Indicator
+            "indicador_luminoso":  row.Has_Light_Indicator,
             "distrito":            row.District_Name,
             "cidade":              row.City_Name,
             "estado":              row.State,
@@ -112,32 +115,37 @@ def bq_to_supabase():
             "h3_cell_res_8":       row.H3_Cell,
             "link_drive":          row.Drive_Pictures,
             "observacoes":         row.Observations,
-            "operacao_24h":        row.Is_Operation_24h,       # era Operation_24h
-            "disponivel":          row.Is_Available,           # era Available
+            "operacao_24h":        row.Is_Operation_24h,
+            "disponivel":          row.Is_Available,
             "entrada_veiculos":    row.Vehicle_Entrance,
             "entrada_pedestres":   row.Pedestrian_Entrance,
-            "tipo_cobertura":      row.Cover_Type,
-            "pavimento":           row.Floor_Type,
             "configuracao_vagas":  row.Vacancies_Configuration,
-            "protecao_incendio":   row.Fire_Protection,
             "operacao_lavagem":    row.Wash,
-            "check_demarcado":     row.Is_Designated_Parking_Space,  # era Designated_Parking_Space
-            "check_cameras":       row.Security_Camera,        # agora string
-            "check_guarita":       row.Has_Guardhouse,         # era Guardhouse
+            "check_guarita":       row.Has_Guardhouse,
             "check_virar_24h":     row.Change_turn_24h,
             "is_blacklisted":      to_bool(row.Blacklist),
-            "has_ev_charger":      row.Has_Ev_Charger,         # era Ev_Charger
-            "status_ev_charger":   row.Status_Ev_Charger,      # NOVO
             "local_roteador":      row.Router_Place,
             "local_amplificador":  row.Amplifier_Place,
             "local_starlink":      row.Starkink_Place,
             "enxoval_marketing":   row.Marketing_Options,
-            "nivel_iluminacao":    row.Light_Level,            # NOVO
-            "motivo_encerramento": row.Motivo_Encerramento,    # NOVO
-            "detalhe_encerramento": row.Detalhe_Encerramento,  # NOVO
-            "data_encerramento":   str(row.Data_Encerramento) if row.Data_Encerramento else None,  # NOVO
+            "motivo_encerramento": row.Motivo_Encerramento,
+            "detalhe_encerramento": row.Detalhe_Encerramento,
+            "data_encerramento":   str(row.Data_Encerramento) if row.Data_Encerramento else None,
             "origem_registro":     "base interna"
         }
+
+        # Campos preenchidos pela vistoria de campo — não sobrescrever se já vistoriado
+        if not ja_vistoriado:
+            data.update({
+                "tipo_cobertura":    row.Cover_Type,
+                "pavimento":         row.Floor_Type,
+                "protecao_incendio": row.Fire_Protection,
+                "check_demarcado":   row.Is_Designated_Parking_Space,
+                "check_cameras":     row.Security_Camera,
+                "has_ev_charger":    row.Has_Ev_Charger,
+                "status_ev_charger": row.Status_Ev_Charger,
+                "nivel_iluminacao":  row.Light_Level,
+            })
         
         if match and match_type == "nome" and not match.get("id_friday"):
             supabase.table("pods").update(data).eq("nome_pod", match["nome_pod"]).execute()
@@ -295,25 +303,25 @@ def supabase_to_bq():
             T.Is_Operation_24h           = S.Is_Operation_24h,
             T.Vehicle_Entrance           = S.Vehicle_Entrance,
             T.Pedestrian_Entrance        = S.Pedestrian_Entrance,
-            T.Cover_Type                 = S.Cover_Type,
-            T.Floor_Type                 = S.Floor_Type,
             T.Vacancies_Configuration    = S.Vacancies_Configuration,
-            T.Fire_Protection            = S.Fire_Protection,
             T.Wash                       = S.Wash,
-            T.Is_Designated_Parking_Space = S.Is_Designated_Parking_Space,
-            T.Security_Camera            = S.Security_Camera,
             T.Has_Guardhouse             = S.Has_Guardhouse,
             T.Change_turn_24h            = S.Change_turn_24h,
             T.Has_Ev_Charger             = S.Has_Ev_Charger,
-            T.Status_Ev_Charger          = S.Status_Ev_Charger,
+            T.Status_Ev_Charger          = COALESCE(S.Status_Ev_Charger,          T.Status_Ev_Charger),
             T.Router_Place               = S.Router_Place,
             T.Amplifier_Place            = S.Amplifier_Place,
             T.Starkink_Place             = S.Starkink_Place,
             T.Marketing_Options          = S.Marketing_Options,
-            T.Light_Level                = S.Light_Level,
-            T.Motivo_Encerramento        = S.Motivo_Encerramento,
-            T.Detalhe_Encerramento       = S.Detalhe_Encerramento,
-            T.Data_Encerramento          = S.Data_Encerramento
+            T.Light_Level                = COALESCE(S.Light_Level,                T.Light_Level),
+            T.Cover_Type                 = COALESCE(S.Cover_Type,                 T.Cover_Type),
+            T.Floor_Type                 = COALESCE(S.Floor_Type,                 T.Floor_Type),
+            T.Fire_Protection            = COALESCE(S.Fire_Protection,            T.Fire_Protection),
+            T.Is_Designated_Parking_Space = COALESCE(S.Is_Designated_Parking_Space, T.Is_Designated_Parking_Space),
+            T.Security_Camera            = COALESCE(S.Security_Camera,            T.Security_Camera),
+            T.Motivo_Encerramento        = COALESCE(S.Motivo_Encerramento,        T.Motivo_Encerramento),
+            T.Detalhe_Encerramento       = COALESCE(S.Detalhe_Encerramento,       T.Detalhe_Encerramento),
+            T.Data_Encerramento          = COALESCE(S.Data_Encerramento,          T.Data_Encerramento)
     """
     client.query(merge_query).result()
     
