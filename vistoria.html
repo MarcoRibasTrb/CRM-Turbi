@@ -92,6 +92,13 @@
 
     <!-- LISTA DE PODs -->
     <main class="max-w-lg mx-auto px-4 py-4 pb-24" id="lista-pods">
+
+    <!-- Banner caches pendentes -->
+    <div id="aviso-cache-pendente" class="hidden bg-amber-50 border border-amber-300 rounded-xl p-3 mb-3 flex flex-col gap-1">
+        <p class="text-xs font-bold text-amber-700">⚠️ Dados não enviados encontrados</p>
+        <p class="text-[11px] text-amber-600" id="aviso-cache-lista"></p>
+        <p class="text-[11px] text-amber-500">Abra cada POD listado e clique em Salvar para reenviar.</p>
+    </div>
         <div class="flex flex-col items-center gap-3 py-16">
             <div class="spinner"></div>
             <p class="text-sm text-slate-400 font-medium">Carregando PODs ativos...</p>
@@ -160,7 +167,7 @@
 
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 mb-1.5">Tipo de Cobertura</label>
-                    <select id="chk-cobertura" class="select-field" onchange="atualizarProgresso()">
+                    <select id="chk-cobertura" class="select-field" onchange="atualizarProgresso(); salvarCacheLocal()">
                         <option value="">— Selecione —</option>
                         <option value="Não há">Não há cobertura</option>
                         <option value="Garagem / Subterrâneo">Garagem / Subterrâneo</option>
@@ -173,7 +180,7 @@
                 <!-- 2. Pavimento -->
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 mb-1.5">Tipo de Pavimento</label>
-                    <select id="chk-pavimento" class="select-field" onchange="atualizarProgresso()">
+                    <select id="chk-pavimento" class="select-field" onchange="atualizarProgresso(); salvarCacheLocal()">
                         <option value="">— Selecione —</option>
                         <option value="Asfalto/concreto">Asfalto / Concreto</option>
                         <option value="Piso Epóxi">Piso Epóxi</option>
@@ -186,7 +193,7 @@
                 <!-- 3. Incêndio -->
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 mb-1.5">🔥 Proteção contra Incêndio</label>
-                    <select id="chk-incendio" class="select-field" onchange="atualizarProgresso()">
+                    <select id="chk-incendio" class="select-field" onchange="atualizarProgresso(); salvarCacheLocal()">
                         <option value="">— Selecione —</option>
                         <option value="Não possui extintores">Não possui extintores</option>
                         <option value="Extintores vencidos">Extintores vencidos</option>
@@ -204,7 +211,7 @@
                         <p class="text-[11px] text-slate-400">Possui carregador para veículos elétricos?</p>
                     </div>
                     <label class="toggle">
-                        <input type="checkbox" id="chk-ev" onchange="atualizarProgresso()">
+                        <input type="checkbox" id="chk-ev" onchange="atualizarProgresso(); salvarCacheLocal()">
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -218,7 +225,7 @@
                         <p class="text-[11px] text-slate-400">O sistema de acesso funcionou corretamente?</p>
                     </div>
                     <label class="toggle">
-                        <input type="checkbox" id="chk-sinal" onchange="atualizarProgresso()">
+                        <input type="checkbox" id="chk-sinal" onchange="atualizarProgresso(); salvarCacheLocal()">
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -232,7 +239,7 @@
                         <p class="text-[11px] text-slate-400">As vagas estão pintadas/demarcadas?</p>
                     </div>
                     <label class="toggle">
-                        <input type="checkbox" id="chk-demarcado" onchange="atualizarProgresso()">
+                        <input type="checkbox" id="chk-demarcado" onchange="atualizarProgresso(); salvarCacheLocal()">
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -306,7 +313,7 @@
                         <p class="text-[11px] text-amber-700 leading-relaxed">• Como funciona o POD à noite?<br>• A internet pega bem em todos os andares?<br>• Viu algo errado no local?</p>
                     </div>
                 </div>
-                <textarea id="chk-obs" rows="3" placeholder="Anote aqui as respostas e qualquer observação relevante..." class="input-text resize-none"></textarea>
+                <textarea id="chk-obs" rows="3" oninput="salvarCacheLocal()" placeholder="Anote aqui as respostas e qualquer observação relevante..." class="input-text resize-none"></textarea>
 
                 <!-- Botão salvar -->
                 <div class="mt-4 pb-2">
@@ -377,6 +384,7 @@
             montarDropdownBairros();
             aplicarFiltros();
             atualizarContadorHeader();
+            mostrarAvisoCachesPendentes();
         }
 
         // ─── FILTROS ───────────────────────────────────────────────────────────────
@@ -493,6 +501,64 @@
             document.getElementById("btn-salvar").disabled  = false;
         }
 
+
+        // ── CACHE LOCAL POR POD ────────────────────────────────────────────────────
+
+        var CACHE_PREFIX = "vistoria_cache_";
+
+        function salvarCacheLocal() {
+            if (!podAtual) return;
+            var chave = CACHE_PREFIX + podAtual.podid;
+            var dados = {
+                cobertura:   document.getElementById("chk-cobertura").value,
+                pavimento:   document.getElementById("chk-pavimento").value,
+                incendio:    document.getElementById("chk-incendio").value,
+                ev:          document.getElementById("chk-ev").checked,
+                sinal:       document.getElementById("chk-sinal").checked,
+                demarcado:   document.getElementById("chk-demarcado").checked,
+                obs:         document.getElementById("chk-obs").value,
+                ts:          new Date().toISOString()
+            };
+            try { localStorage.setItem(chave, JSON.stringify(dados)); } catch(e) {}
+        }
+
+        function carregarCacheLocal(podid) {
+            try {
+                var raw = localStorage.getItem(CACHE_PREFIX + podid);
+                return raw ? JSON.parse(raw) : null;
+            } catch(e) { return null; }
+        }
+
+        function limparCacheLocal(podid) {
+            try { localStorage.removeItem(CACHE_PREFIX + podid); } catch(e) {}
+        }
+
+        function listarCachesPendentes() {
+            var pendentes = [];
+            try {
+                for (var i = 0; i < localStorage.length; i++) {
+                    var k = localStorage.key(i);
+                    if (k && k.startsWith(CACHE_PREFIX)) {
+                        var podid = parseInt(k.replace(CACHE_PREFIX, ""));
+                        var pod = masterPods.find(function(p) { return p.podid === podid; });
+                        if (pod) pendentes.push(pod);
+                    }
+                }
+            } catch(e) {}
+            return pendentes;
+        }
+
+        function mostrarAvisoCachesPendentes() {
+            var pendentes = listarCachesPendentes();
+            if (pendentes.length === 0) return;
+            var nomes = pendentes.map(function(p) { return p.nome_pod || "POD #" + p.podid; }).join(", ");
+            var aviso = document.getElementById("aviso-cache-pendente");
+            if (aviso) {
+                aviso.classList.remove("hidden");
+                document.getElementById("aviso-cache-lista").innerText = nomes;
+            }
+        }
+
         // ─── ABRIR POD ─────────────────────────────────────────────────────────────
         function abrirPod(podid) {
             podAtual = masterPods.find(function(p) { return p.podid === podid; });
@@ -517,13 +583,27 @@
                 document.getElementById("m-contato-wrap").classList.add("hidden");
             }
 
-            // Pré-preenche com dados já salvos no banco para este POD
-            setSelectSafe("chk-cobertura", podAtual.tipo_cobertura);
+            // Verifica se há cache local pendente para este POD
+            var cacheLocal = carregarCacheLocal(podAtual.podid);
+            if (cacheLocal) {
+                // Pré-preenche do cache (dados não salvos ainda)
+                if (cacheLocal.cobertura) setSelectSafe("chk-cobertura", cacheLocal.cobertura);
+                if (cacheLocal.pavimento) setSelectSafe("chk-pavimento", cacheLocal.pavimento);
+                if (cacheLocal.incendio)  setSelectSafe("chk-incendio",  cacheLocal.incendio);
+                document.getElementById("chk-ev").checked       = cacheLocal.ev       || false;
+                document.getElementById("chk-sinal").checked    = cacheLocal.sinal    || false;
+                document.getElementById("chk-demarcado").checked = cacheLocal.demarcado || false;
+                document.getElementById("chk-obs").value        = cacheLocal.obs      || "";
+                mostrarToast("⚠️ Dados não enviados restaurados do cache local");
+            } else {
+                // Pré-preenche com dados já salvos no banco para este POD
+                setSelectSafe("chk-cobertura", podAtual.tipo_cobertura);
             setSelectSafe("chk-pavimento", podAtual.pavimento);
             setSelectSafe("chk-incendio",  podAtual.protecao_incendio);
-            document.getElementById("chk-ev").checked        = podAtual.has_ev_charger  || false;
-            document.getElementById("chk-sinal").checked     = podAtual.sinal           || false;
-            document.getElementById("chk-demarcado").checked = podAtual.check_demarcado || false;
+                document.getElementById("chk-ev").checked        = podAtual.has_ev_charger  || false;
+                document.getElementById("chk-sinal").checked     = podAtual.sinal           || false;
+                document.getElementById("chk-demarcado").checked = podAtual.check_demarcado || false;
+            }
 
             atualizarProgresso();
 
@@ -754,14 +834,16 @@
 
                 // ── 4. FEEDBACK FINAL ─────────────────────────────────────────────
                 if (erros.length > 0) {
-                    mostrarToast("⚠️ Checklist salvo, mas " + erros.length + " foto(s) falharam");
+                    limparCacheLocal(podAtual.podid);
+                mostrarToast("⚠️ Checklist salvo, mas " + erros.length + " foto(s) falharam");
                     console.warn("Erros de upload:", erros);
                     // Mostra detalhes dos erros em alerta simples
                     setTimeout(function() {
                         alert("Checklist salvo com sucesso! ✅\n\nAtenção — as seguintes fotos não foram enviadas:\n\n• " + erros.join("\n• ") + "\n\nTente enviar novamente ou informe ao suporte.");
                     }, 500);
                 } else {
-                    mostrarToast("✅ Vistoria salva com sucesso!");
+                    limparCacheLocal(podAtual.podid);
+                mostrarToast("✅ Vistoria salva com sucesso!");
                 }
 
                 btn.style.display = "none";
