@@ -31,136 +31,104 @@ def to_bool(value):
 def bq_to_supabase():
     print("🤖 [Fluxo 1] BigQuery -> Supabase...")
     
-    # --- PASSO A: Baixar espelho do Supabase com paginação ---
-    print("Baixando base atual do Supabase para cruzamento...")
-    supabase_records = []
-    limit = 1000
-    offset = 0
-    while True:
-        res = supabase.table("pods").select("id_friday, nome_pod, status, vistoria_fim").range(offset, offset + limit - 1).execute()
-        data = res.data
-        supabase_records.extend(data)
-        if len(data) < limit:
-            break
-        offset += limit
-        
-    # Criar dicionários de busca rápida
-    supa_by_id = {str(r["id_friday"]): r for r in supabase_records if r.get("id_friday")}
-    supa_by_nome = {r["nome_pod"].strip().lower(): r for r in supabase_records if r.get("nome_pod")}
-    
-    # --- PASSO B: Buscar dados do BigQuery ---
-    # ATENÇÃO: Colunas renomeadas no BQ refletidas aqui
     query = """
-        SELECT
-            Id, Name, District_Name, City_Name, State, Available_Vehicles, Status,
-            Parking_Lots, Parking_Lot_Price, Contac_Name, Contact_Telefone, Contact_Email,
-            Start_Date, Overbooking, Latitude, Longitude, H3_Cell, Drive_Pictures,
-            Observations,
-            Is_Operation_24h,           -- era Operation_24h
-            Is_Available,               -- era Available
-            Vehicle_Entrance, Pedestrian_Entrance, Cover_Type, Floor_Type,
-            Vacancies_Configuration, Fire_Protection, Wash,
-            Is_Designated_Parking_Space, -- era Designated_Parking_Space
-            Security_Camera,            -- agora STRING
-            Has_Guardhouse,             -- era Guardhouse
-            Change_turn_24h, Blacklist,
-            Has_Ev_Charger,             -- era Ev_Charger
-            Status_Ev_Charger,          -- NOVO campo
-            Router_Place, Amplifier_Place, Starkink_Place, Marketing_Options,
-            Has_Light_Indicator,        -- era Light_Indicator
-            Light_Level,                -- NOVO campo (iluminação)
-            Motivo_Encerramento,        -- NOVO
-            Detalhe_Encerramento,       -- NOVO
-            Data_Encerramento           -- NOVO
-        FROM `turbi-dc-ops.pods.tb_pods`
+        SELECT Id, Name, District_Name, City_Name, State, Available_Vehicles, Status, Parking_Lots, Parking_Lot_Price,
+               Contac_Name, Contact_Telefone, Contact_Email, Start_Date, Overbooking, Latitude, Longitude, H3_Cell, Drive_Pictures,
+               Observations, Operation_24h, Available, Vehicle_Entrance, Pedestrian_Entrance, Cover_Type, Floor_Type, Vacancies_Configuration, Fire_Protection, Wash,
+               Designated_Parking_Space, Security_Camera, Guardhouse, Change_turn_24h, Blacklist, Ev_Charger, Router_Place, Amplifier_Place, Starkink_Place, Marketing_Options, Light_Indicator
+        FROM `turbi-dc-ops.pods.tb_pods` 
     """
     query_job = client.query(query)
     
-    lista_upsert = []
+    lista_estacionamentos = []
     
-    print("Processando regras de cruzamento e atualização de dados...")
     for row in query_job.result():
-        bq_id_str = str(row.Id)
-        bq_name = row.Name
-        bq_name_lower = bq_name.strip().lower() if bq_name else ""
-        
-        match = supa_by_id.get(bq_id_str)
-        match_type = "id"
-        
-        if not match and bq_name_lower in supa_by_nome:
-            match = supa_by_nome[bq_name_lower]
-            match_type = "nome"
-
-        # Se o POD já foi vistoriado (vistoria_fim preenchido), protege os campos de vistoria
-        ja_vistoriado = match and match.get("vistoria_fim")
-
         data = {
-            "id_friday":           row.Id,
-            "nome_pod":            row.Name,
-            "status":              row.Status,
-            "indicador_luminoso":  row.Has_Light_Indicator,
-            "distrito":            row.District_Name,
-            "cidade":              row.City_Name,
-            "estado":              row.State,
-            "vagas_disponiveis":   row.Available_Vehicles,
-            "capacidade_total":    row.Parking_Lots,
-            "parkinglotprice":     row.Parking_Lot_Price,
-            "contato_nome":        row.Contac_Name,
-            "telefone":            row.Contact_Telefone,
-            "email":               row.Contact_Email,
-            "created_at":          str(row.Start_Date) if row.Start_Date else None,
-            "check_overbooking":   bool(row.Overbooking) if row.Overbooking is not None else None,
-            "latitude":            row.Latitude,
-            "longitude":           row.Longitude,
-            "h3_cell_res_8":       row.H3_Cell,
-            "link_drive":          row.Drive_Pictures,
-            "observacoes":         row.Observations,
-            "operacao_24h":        row.Is_Operation_24h,
-            "disponivel":          row.Is_Available,
-            "entrada_veiculos":    row.Vehicle_Entrance,
-            "entrada_pedestres":   row.Pedestrian_Entrance,
-            "configuracao_vagas":  row.Vacancies_Configuration,
-            "operacao_lavagem":    row.Wash,
-            "check_guarita":       row.Has_Guardhouse,
-            "check_virar_24h":     row.Change_turn_24h,
-            "is_blacklisted":      to_bool(row.Blacklist),
-            "local_roteador":      row.Router_Place,
-            "local_amplificador":  row.Amplifier_Place,
-            "local_starlink":      row.Starkink_Place,
-            "enxoval_marketing":   row.Marketing_Options,
-            "motivo_encerramento": row.Motivo_Encerramento,
-            "detalhe_encerramento": row.Detalhe_Encerramento,
-            "data_encerramento":   str(row.Data_Encerramento) if row.Data_Encerramento else None,
-            "origem_registro":     "base interna"
+            "id_friday": row.Id,               
+            "nome_pod": row.Name,                   
+            "status": row.Status,
+            "indicador_luminoso": row.Light_Indicator, 
+            "distrito": row.District_Name,
+            "cidade": row.City_Name,
+            "estado": row.State,
+            "vagas_disponiveis": row.Available_Vehicles,
+            "capacidade_total": row.Parking_Lots,
+            "parkinglotprice": row.Parking_Lot_Price,
+            "contato_nome": row.Contac_Name, 
+            "telefone": row.Contact_Telefone,
+            "email": row.Contact_Email,
+            "created_at": str(row.Start_Date) if row.Start_Date else None,
+            "check_overbooking": bool(row.Overbooking) if row.Overbooking is not None else None,
+            "latitude": row.Latitude,
+            "longitude": row.Longitude,
+            "h3_cell_res_8": row.H3_Cell,
+            "link_drive": row.Drive_Pictures,
+            "observacoes": row.Observations,
+            "operacao_24h": row.Operation_24h,
+            "disponivel": row.Available,
+            "entrada_veiculos": row.Vehicle_Entrance,
+            "entrada_pedestres": row.Pedestrian_Entrance,
+            "tipo_cobertura": row.Cover_Type,
+            "pavimento": row.Floor_Type,
+            "configuracao_vagas": row.Vacancies_Configuration,
+            "protecao_incendio": row.Fire_Protection,
+            "operacao_lavagem": row.Wash,
+            "check_demarcado": row.Designated_Parking_Space,
+            "check_cameras": row.Security_Camera,
+            "check_guarita": row.Guardhouse,
+            "check_virar_24h": row.Change_turn_24h,
+            "is_blacklisted": row.Blacklist,
+            "has_ev_charger": row.Ev_Charger,
+            "local_roteador": row.Router_Place,
+            "local_amplificador": row.Amplifier_Place,
+            "local_starlink": row.Starkink_Place, 
+            "enxoval_marketing": row.Marketing_Options,
+            "origem_registro": "base interna"
         }
-
-        # Campos preenchidos pela vistoria de campo — não sobrescrever se já vistoriado
-        if not ja_vistoriado:
-            data.update({
-                "tipo_cobertura":    row.Cover_Type,
-                "pavimento":         row.Floor_Type,
-                "protecao_incendio": row.Fire_Protection,
-                "check_demarcado":   row.Is_Designated_Parking_Space,
-                "check_cameras":     row.Security_Camera,
-                "has_ev_charger":    row.Has_Ev_Charger,
-                "status_ev_charger": row.Status_Ev_Charger,
-                "nivel_iluminacao":  row.Light_Level,
-            })
-        
-        if match and match_type == "nome" and not match.get("id_friday"):
-            supabase.table("pods").update(data).eq("nome_pod", match["nome_pod"]).execute()
-        else:
-            lista_upsert.append(data)
+        lista_estacionamentos.append(data)
     
-    if lista_upsert:
-        print(f"Enviando {len(lista_upsert)} registros via UPSERT para o Supabase...")
-        supabase.table("pods").upsert(
-            lista_upsert,
-            on_conflict="id_friday"
-        ).execute()
+    # Colunas de vistoria que NÃO devem ser sobrescritas pelo BQ
+    COLUNAS_VISTORIA = {"tipo_cobertura", "pavimento", "protecao_incendio", "has_ev_charger", "indicador_luminoso", "check_demarcado"}
+
+    # Colunas que o BQ pode atualizar com segurança
+    COLUNAS_BQ = [
+        "id_friday", "nome_pod", "status", "distrito", "cidade", "estado",
+        "vagas_disponiveis", "capacidade_total", "parkinglotprice", "contato_nome",
+        "telefone", "email", "created_at", "check_overbooking", "latitude", "longitude",
+        "h3_cell_res_8", "link_drive", "observacoes", "operacao_24h", "disponivel",
+        "entrada_veiculos", "entrada_pedestres", "configuracao_vagas", "operacao_lavagem",
+        "check_cameras", "check_guarita", "check_virar_24h", "is_blacklisted",
+        "local_roteador", "local_amplificador", "local_starlink", "enxoval_marketing",
+        "origem_registro"
+    ]
+
+    if lista_estacionamentos:
+        print(f"Enviando {len(lista_estacionamentos)} registros para o Supabase...")
+        ativos = sum(1 for r in lista_estacionamentos if r["status"] == "Ativo")
+        inativos = sum(1 for r in lista_estacionamentos if r["status"] == "Inativo")
+        print(f"Ativos: {ativos} | Inativos: {inativos}")
+
+        # Busca quais id_fridays já existem no Supabase
+        existentes_resp = supabase.table("pods").select("id_friday").not_.is_("id_friday", "null").execute()
+        ids_existentes = {r['id_friday'] for r in existentes_resp.data}
+
+        para_insert = [r for r in lista_estacionamentos if r['id_friday'] not in ids_existentes]
+        para_update = [r for r in lista_estacionamentos if r['id_friday'] in ids_existentes]
+
+        # INSERT para novos registros
+        if para_insert:
+            print(f"Inserindo {len(para_insert)} novos registros...")
+            supabase.table("pods").insert(para_insert).execute()
+
+        # UPDATE apenas nas colunas do BQ, preservando colunas de vistoria
+        if para_update:
+            print(f"Atualizando {len(para_update)} registros existentes...")
+            for registro in para_update:
+                registro_filtrado = {k: v for k, v in registro.items() if k in COLUNAS_BQ}
+                id_friday = registro_filtrado.pop("id_friday")
+                supabase.table("pods").update(registro_filtrado).eq("id_friday", id_friday).execute()
         
     print("✅ Fluxo BigQuery -> Supabase concluído.")
-
 
 def supabase_to_bq():
     print("🤖 [Fluxo 2] Supabase -> BigQuery...")
@@ -169,13 +137,18 @@ def supabase_to_bq():
         "id_friday, nome_pod, status, indicador_luminoso, distrito, cidade, estado, vagas_disponiveis, capacidade_total, parkinglotprice,"
         "contato_nome, telefone, email, created_at, check_overbooking, latitude, longitude, h3_cell_res_8, link_drive, observacoes,"
         "operacao_24h, disponivel, entrada_veiculos, entrada_pedestres, tipo_cobertura, pavimento, configuracao_vagas, protecao_incendio,"
-        "operacao_lavagem, check_demarcado, check_cameras, check_guarita, check_virar_24h, is_blacklisted, has_ev_charger, status_ev_charger,"
-        "local_roteador, local_amplificador, local_starlink, enxoval_marketing, nivel_iluminacao,"
-        "motivo_encerramento, detalhe_encerramento, data_encerramento"
+        "operacao_lavagem, check_demarcado, check_cameras, check_guarita, check_virar_24h, is_blacklisted, has_ev_charger, local_roteador,"
+        "local_amplificador, local_starlink, enxoval_marketing"
     )
     
-    response = supabase.table("pods").select(colunas_supabase).not_.is_("id_friday", "null").execute()
-    records_validos = response.data
+    response = supabase.table("pods").select(colunas_supabase).execute()
+    records = response.data
+    
+    if not records:
+        print("Nenhum dado encontrado no Supabase para atualizar.")
+        return
+
+    records_validos = [r for r in records if r.get('id_friday') is not None]
     
     if not records_validos:
         print("Nenhum registro com 'id_friday' válido para atualizar no BQ.")
@@ -186,146 +159,149 @@ def supabase_to_bq():
     linhas_para_bq = []
     for r in records_validos:
         linha = {
-            "Id":                        r["id_friday"],
-            "Has_Light_Indicator":       to_bool(r["indicador_luminoso"]),  # era Light_Indicator
-            "Status":                    r["status"],
-            "Parking_Lots":              r["capacidade_total"],
-            "Parking_Lot_Price":         r["parkinglotprice"],
-            "Contac_Name":               r["contato_nome"],
-            "Contact_Telefone":          r["telefone"],
-            "Contact_Email":             r["email"],
-            "Observations":              r["observacoes"],
-            "Name":                      r["nome_pod"],
-            "District_Name":             r["distrito"],
-            "City_Name":                 r["cidade"],
-            "State":                     r["estado"],
-            "Available_Vehicles":        r["vagas_disponiveis"],
-            "Start_Date":                r["created_at"][:10] if r["created_at"] else None,
-            "Overbooking":               int(r["check_overbooking"]) if r["check_overbooking"] is not None else None,
-            "Latitude":                  r["latitude"],
-            "Longitude":                 r["longitude"],
-            "H3_Cell":                   r["h3_cell_res_8"],
-            "Drive_Pictures":            r["link_drive"],
-            "Is_Operation_24h":          to_bool(r["operacao_24h"]),         # era Operation_24h
-            "Is_Available":              to_bool(r["disponivel"]),            # era Available
-            "Vehicle_Entrance":          r["entrada_veiculos"],
-            "Pedestrian_Entrance":       r["entrada_pedestres"],
-            "Cover_Type":                r["tipo_cobertura"],
-            "Floor_Type":                r["pavimento"],
-            "Vacancies_Configuration":   r["configuracao_vagas"],
-            "Fire_Protection":           r["protecao_incendio"],
-            "Wash":                      r["operacao_lavagem"],
-            "Is_Designated_Parking_Space": to_bool(r["check_demarcado"]),    # era Designated_Parking_Space
-            "Security_Camera":           r["check_cameras"],                 # agora string
-            "Has_Guardhouse":            to_bool(r["check_guarita"]),        # era Guardhouse
-            "Change_turn_24h":           to_bool(r["check_virar_24h"]),
-            "Blacklist":                 to_bool(r["is_blacklisted"]),
-            "Has_Ev_Charger":            to_bool(r["has_ev_charger"]),       # era Ev_Charger
-            "Status_Ev_Charger":         r["status_ev_charger"],             # NOVO
-            "Router_Place":              r["local_roteador"],
-            "Amplifier_Place":           r["local_amplificador"],
-            "Starkink_Place":            r["local_starlink"],
-            "Marketing_Options":         r["enxoval_marketing"],
-            "Light_Level":               r["nivel_iluminacao"],              # NOVO
-            "Motivo_Encerramento":        r["motivo_encerramento"],           # NOVO
-            "Detalhe_Encerramento":       r["detalhe_encerramento"],          # NOVO
-            "Data_Encerramento":          r["data_encerramento"],             # NOVO
+            "Id": r['id_friday'],
+            "Light_Indicator": to_bool(r['indicador_luminoso']),
+            "Status": r['status'],
+            "Parking_Lots": r['capacidade_total'],
+            "Parking_Lot_Price": r['parkinglotprice'],
+            "Contac_Name": r['contato_nome'],
+            "Contact_Telefone": r['telefone'],
+            "Contact_Email": r['email'],
+            "Observations": r['observacoes'],
+            "Name": r['nome_pod'],
+            "District_Name": r['distrito'],
+            "City_Name": r['cidade'],
+            "State": r['estado'],
+            "Available_Vehicles": r['vagas_disponiveis'],
+            "Start_Date": r['created_at'][:10] if r['created_at'] else None,
+            "Overbooking": int(r['check_overbooking']) if r['check_overbooking'] is not None else None,
+            "Latitude": r['latitude'],
+            "Longitude": r['longitude'],
+            "H3_Cell": r['h3_cell_res_8'],
+            "Drive_Pictures": r['link_drive'],
+            "Operation_24h": to_bool(r['operacao_24h']),
+            "Available": to_bool(r['disponivel']),
+            "Vehicle_Entrance": r['entrada_veiculos'],
+            "Pedestrian_Entrance": r['entrada_pedestres'],
+            "Cover_Type": r['tipo_cobertura'],
+            "Floor_Type": r['pavimento'],
+            "Vacancies_Configuration": r['configuracao_vagas'],
+            "Fire_Protection": to_bool(r['protecao_incendio']),
+            "Wash": to_bool(r['operacao_lavagem']),
+            "Designated_Parking_Space": to_bool(r['check_demarcado']),
+            "Security_Camera": to_bool(r['check_cameras']),
+            "Guardhouse": to_bool(r['check_guarita']),
+            "Change_turn_24h": to_bool(r['check_virar_24h']),
+            "Blacklist": to_bool(r['is_blacklisted']),
+            "Ev_Charger": to_bool(r['has_ev_charger']),
+            "Router_Place": r['local_roteador'],
+            "Amplifier_Place": r['local_amplificador'],
+            "Starkink_Place": r['local_starlink'],
+            "Marketing_Options": r['enxoval_marketing']
         }
         linhas_para_bq.append(linha)
 
-    dataset_ref = client.dataset("pods")
+    dataset_ref = client.dataset("pods") 
     stage_table_ref = dataset_ref.table("tb_pods_stage")
     
     job_config = bigquery.LoadJobConfig(
         write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
         schema=[
-            bigquery.SchemaField("Id",                          "INTEGER"),
-            bigquery.SchemaField("Name",                        "STRING"),
-            bigquery.SchemaField("District_Name",               "STRING"),
-            bigquery.SchemaField("City_Name",                   "STRING"),
-            bigquery.SchemaField("State",                       "STRING"),
-            bigquery.SchemaField("Available_Vehicles",          "INTEGER"),
-            bigquery.SchemaField("Status",                      "STRING"),
-            bigquery.SchemaField("Parking_Lots",                "INTEGER"),
-            bigquery.SchemaField("Parking_Lot_Price",           "FLOAT"),
-            bigquery.SchemaField("Contac_Name",                 "STRING"),
-            bigquery.SchemaField("Contact_Telefone",            "STRING"),
-            bigquery.SchemaField("Contact_Email",               "STRING"),
-            bigquery.SchemaField("Start_Date",                  "DATE"),
-            bigquery.SchemaField("Overbooking",                 "INTEGER"),
-            bigquery.SchemaField("Latitude",                    "FLOAT"),
-            bigquery.SchemaField("Longitude",                   "FLOAT"),
-            bigquery.SchemaField("H3_Cell",                     "STRING"),
-            bigquery.SchemaField("Drive_Pictures",              "STRING"),
-            bigquery.SchemaField("Observations",                "STRING"),
-            bigquery.SchemaField("Is_Operation_24h",            "BOOL"),     # renomeado
-            bigquery.SchemaField("Is_Available",                "BOOL"),     # renomeado
-            bigquery.SchemaField("Vehicle_Entrance",            "STRING"),
-            bigquery.SchemaField("Pedestrian_Entrance",         "STRING"),
-            bigquery.SchemaField("Cover_Type",                  "STRING"),
-            bigquery.SchemaField("Floor_Type",                  "STRING"),
-            bigquery.SchemaField("Vacancies_Configuration",     "STRING"),
-            bigquery.SchemaField("Fire_Protection",             "STRING"),
-            bigquery.SchemaField("Wash",                        "STRING"),
-            bigquery.SchemaField("Is_Designated_Parking_Space", "BOOL"),    # renomeado
-            bigquery.SchemaField("Security_Camera",             "STRING"),  # tipo alterado
-            bigquery.SchemaField("Has_Guardhouse",              "BOOL"),    # renomeado
-            bigquery.SchemaField("Change_turn_24h",             "BOOL"),
-            bigquery.SchemaField("Blacklist",                   "BOOL"),
-            bigquery.SchemaField("Has_Ev_Charger",              "BOOL"),    # renomeado
-            bigquery.SchemaField("Status_Ev_Charger",           "STRING"),  # NOVO
-            bigquery.SchemaField("Router_Place",                "STRING"),
-            bigquery.SchemaField("Amplifier_Place",             "STRING"),
-            bigquery.SchemaField("Starkink_Place",              "STRING"),
-            bigquery.SchemaField("Marketing_Options",           "STRING"),
-            bigquery.SchemaField("Has_Light_Indicator",         "BOOL"),    # renomeado
-            bigquery.SchemaField("Light_Level",                 "STRING"),  # NOVO
-            bigquery.SchemaField("Motivo_Encerramento",         "STRING"),  # NOVO
-            bigquery.SchemaField("Detalhe_Encerramento",        "STRING"),  # NOVO
-            bigquery.SchemaField("Data_Encerramento",           "TIMESTAMP"), # NOVO
+            bigquery.SchemaField("Id", "INTEGER"),
+            bigquery.SchemaField("Name", "STRING"),
+            bigquery.SchemaField("District_Name", "STRING"),
+            bigquery.SchemaField("City_Name", "STRING"),
+            bigquery.SchemaField("State", "STRING"),
+            bigquery.SchemaField("Available_Vehicles", "INTEGER"),
+            bigquery.SchemaField("Status", "STRING"),
+            bigquery.SchemaField("Parking_Lots", "INTEGER"),
+            bigquery.SchemaField("Parking_Lot_Price", "FLOAT"),
+            bigquery.SchemaField("Contac_Name", "STRING"),
+            bigquery.SchemaField("Contact_Telefone", "STRING"),
+            bigquery.SchemaField("Contact_Email", "STRING"),
+            bigquery.SchemaField("Start_Date", "DATE"),
+            bigquery.SchemaField("Overbooking", "INTEGER"),
+            bigquery.SchemaField("Latitude", "FLOAT"),
+            bigquery.SchemaField("Longitude", "FLOAT"),
+            bigquery.SchemaField("H3_Cell", "STRING"),
+            bigquery.SchemaField("Drive_Pictures", "STRING"),
+            bigquery.SchemaField("Observations", "STRING"),
+            bigquery.SchemaField("Operation_24h", "BOOL"),
+            bigquery.SchemaField("Available", "BOOL"),
+            bigquery.SchemaField("Vehicle_Entrance", "STRING"),
+            bigquery.SchemaField("Pedestrian_Entrance", "STRING"),
+            bigquery.SchemaField("Cover_Type", "STRING"),
+            bigquery.SchemaField("Floor_Type", "STRING"),
+            bigquery.SchemaField("Vacancies_Configuration", "STRING"),
+            bigquery.SchemaField("Fire_Protection", "STRING"),
+            bigquery.SchemaField("Wash", "STRING"),
+            bigquery.SchemaField("Designated_Parking_Space", "BOOL"),
+            bigquery.SchemaField("Security_Camera", "BOOL"),
+            bigquery.SchemaField("Guardhouse", "BOOL"),
+            bigquery.SchemaField("Change_turn_24h", "BOOL"),
+            bigquery.SchemaField("Blacklist", "BOOL"),
+            bigquery.SchemaField("Ev_Charger", "BOOL"),
+            bigquery.SchemaField("Router_Place", "STRING"),
+            bigquery.SchemaField("Amplifier_Place", "STRING"),
+            bigquery.SchemaField("Starkink_Place", "STRING"),
+            bigquery.SchemaField("Marketing_Options", "STRING"),
+            bigquery.SchemaField("Light_Indicator", "BOOL"),
         ]
     )
     
     print("Enviando dados para a tabela de estágio no BigQuery...")
     load_job = client.load_table_from_json(linhas_para_bq, stage_table_ref, job_config=job_config)
-    load_job.result()
+    load_job.result() 
 
-    print("Executando o MERGE de atualização restrita na tabela principal...")
+    print("Executando o MERGE de atualização na tabela principal...")
     merge_query = """
         MERGE `turbi-dc-ops.pods.tb_pods` T
         USING `turbi-dc-ops.pods.tb_pods_stage` S
         ON T.Id = S.Id
         WHEN MATCHED THEN
-          UPDATE SET
-            T.Has_Light_Indicator        = S.Has_Light_Indicator,
-            T.Observations               = S.Observations,
-            T.Drive_Pictures             = S.Drive_Pictures,
-            T.Is_Operation_24h           = S.Is_Operation_24h,
-            T.Vehicle_Entrance           = S.Vehicle_Entrance,
-            T.Pedestrian_Entrance        = S.Pedestrian_Entrance,
-            T.Vacancies_Configuration    = S.Vacancies_Configuration,
-            T.Wash                       = S.Wash,
-            T.Has_Guardhouse             = S.Has_Guardhouse,
-            T.Change_turn_24h            = S.Change_turn_24h,
-            T.Has_Ev_Charger             = S.Has_Ev_Charger,
-            T.Router_Place               = S.Router_Place,
-            T.Amplifier_Place            = S.Amplifier_Place,
-            T.Starkink_Place             = S.Starkink_Place,
-            T.Marketing_Options          = S.Marketing_Options,
-            T.Cover_Type                 = CASE WHEN S.Cover_Type IS NOT NULL AND S.Cover_Type != '' THEN S.Cover_Type ELSE T.Cover_Type END,
-            T.Floor_Type                 = CASE WHEN S.Floor_Type IS NOT NULL AND S.Floor_Type != '' THEN S.Floor_Type ELSE T.Floor_Type END,
-            T.Fire_Protection            = CASE WHEN S.Fire_Protection IS NOT NULL AND S.Fire_Protection != '' THEN S.Fire_Protection ELSE T.Fire_Protection END,
-            T.Is_Designated_Parking_Space = CASE WHEN S.Is_Designated_Parking_Space IS NOT NULL THEN S.Is_Designated_Parking_Space ELSE T.Is_Designated_Parking_Space END,
-            T.Security_Camera            = CASE WHEN S.Security_Camera IS NOT NULL AND S.Security_Camera != '' THEN S.Security_Camera ELSE T.Security_Camera END,
-            T.Status_Ev_Charger          = CASE WHEN S.Status_Ev_Charger IS NOT NULL AND S.Status_Ev_Charger != '' THEN S.Status_Ev_Charger ELSE T.Status_Ev_Charger END,
-            T.Light_Level                = CASE WHEN S.Light_Level IS NOT NULL AND S.Light_Level != '' THEN S.Light_Level ELSE T.Light_Level END,
-            T.Motivo_Encerramento        = CASE WHEN S.Motivo_Encerramento IS NOT NULL AND S.Motivo_Encerramento != '' THEN S.Motivo_Encerramento ELSE T.Motivo_Encerramento END,
-            T.Detalhe_Encerramento       = CASE WHEN S.Detalhe_Encerramento IS NOT NULL AND S.Detalhe_Encerramento != '' THEN S.Detalhe_Encerramento ELSE T.Detalhe_Encerramento END,
-            T.Data_Encerramento          = CASE WHEN S.Data_Encerramento IS NOT NULL THEN S.Data_Encerramento ELSE T.Data_Encerramento END
+          UPDATE SET 
+            T.Light_Indicator = S.Light_Indicator,
+            T.Status = S.Status,
+            T.Parking_Lots = S.Parking_Lots,
+            T.Parking_Lot_Price = S.Parking_Lot_Price,
+            T.Contac_Name = S.Contac_Name,
+            T.Contact_Telefone = S.Contact_Telefone,
+            T.Contact_Email = S.Contact_Email,
+            T.Observations = S.Observations,
+            T.Name = S.Name,
+            T.District_Name = S.District_Name,
+            T.City_Name = S.City_Name,
+            T.State = S.State,
+            T.Available_Vehicles = S.Available_Vehicles,
+            T.Start_Date = S.Start_Date,
+            T.Overbooking = S.Overbooking,
+            T.Latitude = S.Latitude,
+            T.Longitude = S.Longitude,
+            T.H3_Cell = S.H3_Cell,
+            T.Drive_Pictures = S.Drive_Pictures,
+            T.Operation_24h = S.Operation_24h,
+            T.Available = S.Available,
+            T.Vehicle_Entrance = S.Vehicle_Entrance,
+            T.Pedestrian_Entrance = S.Pedestrian_Entrance,
+            T.Cover_Type = S.Cover_Type,
+            T.Floor_Type = S.Floor_Type,
+            T.Vacancies_Configuration = S.Vacancies_Configuration,
+            T.Fire_Protection = S.Fire_Protection,
+            T.Wash = S.Wash,
+            T.Designated_Parking_Space = S.Designated_Parking_Space,
+            T.Security_Camera = S.Security_Camera,
+            T.Guardhouse = S.Guardhouse,
+            T.Change_turn_24h = S.Change_turn_24h,
+            T.Blacklist = S.Blacklist,
+            T.Ev_Charger = S.Ev_Charger,
+            T.Router_Place = S.Router_Place,
+            T.Amplifier_Place = S.Amplifier_Place,
+            T.Starkink_Place = S.Starkink_Place,
+            T.Marketing_Options = S.Marketing_Options
     """
     client.query(merge_query).result()
     
-    print("✅ Fluxo Supabase -> BigQuery concluído com segurança total!")
+    print("✅ Fluxo Supabase -> BigQuery concluído com sucesso total utilizando MERGE!")
 
 if __name__ == "__main__":
     bq_to_supabase()
