@@ -138,7 +138,7 @@ def supabase_to_bq():
         "contato_nome, telefone, email, created_at, check_overbooking, latitude, longitude, h3_cell_res_8, link_drive, observacoes,"
         "operacao_24h, disponivel, entrada_veiculos, entrada_pedestres, tipo_cobertura, pavimento, configuracao_vagas, protecao_incendio,"
         "operacao_lavagem, check_demarcado, check_cameras, check_guarita, check_virar_24h, is_blacklisted, has_ev_charger, local_roteador,"
-        "local_amplificador, local_starlink, enxoval_marketing"
+        "local_amplificador, local_starlink, enxoval_marketing, motivo_encerramento, detalhe_encerramento, data_encerramento"
     )
     
     response = supabase.table("pods").select(colunas_supabase).execute()
@@ -197,7 +197,10 @@ def supabase_to_bq():
             "Router_Place": r['local_roteador'],
             "Amplifier_Place": r['local_amplificador'],
             "Starkink_Place": r['local_starlink'],
-            "Marketing_Options": r['enxoval_marketing']
+            "Marketing_Options": r['enxoval_marketing'],
+            "Motivo_Inativacao": r['motivo_encerramento'],
+            "Detalhe_Inativacao": r['detalhe_encerramento'],
+            "Data_Inativacao": r['data_encerramento']
         }
         linhas_para_bq.append(linha)
 
@@ -246,6 +249,9 @@ def supabase_to_bq():
             bigquery.SchemaField("Starkink_Place", "STRING"),
             bigquery.SchemaField("Marketing_Options", "STRING"),
             bigquery.SchemaField("Light_Indicator", "BOOL"),
+            bigquery.SchemaField("Motivo_Inativacao", "STRING"),
+            bigquery.SchemaField("Detalhe_Inativacao", "STRING"),
+            bigquery.SchemaField("Data_Inativacao", "TIMESTAMP"),
         ]
     )
     
@@ -297,7 +303,10 @@ def supabase_to_bq():
             T.Router_Place = S.Router_Place,
             T.Amplifier_Place = S.Amplifier_Place,
             T.Starkink_Place = S.Starkink_Place,
-            T.Marketing_Options = S.Marketing_Options
+            T.Marketing_Options = S.Marketing_Options,
+            T.Motivo_Inativacao = S.Motivo_Inativacao,
+            T.Detalhe_Inativacao = S.Detalhe_Inativacao,
+            T.Data_Inativacao = S.Data_Inativacao
     """
     client.query(merge_query).result()
     
