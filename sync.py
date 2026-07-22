@@ -30,31 +30,35 @@ def to_bool(value):
 
 def bq_to_supabase():
     print("🤖 [Fluxo 1] BigQuery -> Supabase...")
-    
+
     query = """
-        SELECT Id, Name, District_Name, City_Name, State, Available_Vehicles, Status, Parking_Lots, Parking_Lot_Price,
-               Contac_Name, Contact_Telefone, Contact_Email, Start_Date, Overbooking, Latitude, Longitude, H3_Cell, Drive_Pictures,
-               Observations, Operation_24h, Available, Vehicle_Entrance, Pedestrian_Entrance, Cover_Type, Floor_Type, Vacancies_Configuration, Fire_Protection, Wash,
-               Designated_Parking_Space, Security_Camera, Guardhouse, Change_turn_24h, Blacklist, Ev_Charger, Router_Place, Amplifier_Place, Starkink_Place, Marketing_Options, Light_Indicator
-        FROM `turbi-dc-ops.pods.tb_pods` 
+        SELECT Id, Name, District_Name, City_Name, State, Available_Vehicles, Status,
+               Parking_Lots, Parking_Lot_Price, Contac_Name, Contact_Telefone, Contact_Email,
+               Start_Date, Overbooking, Latitude, Longitude, H3_Cell, Drive_Pictures,
+               Observations, Is_Operation_24h, Is_Available, Vehicle_Entrance, Pedestrian_Entrance,
+               Cover_Type, Floor_Type, Vacancies_Configuration, Fire_Protection, Wash,
+               Is_Designated_Parking_Space, Security_Camera, Has_Guardhouse, Change_turn_24h,
+               Blacklist, Has_Ev_Charger, Router_Place, Amplifier_Place, Starkink_Place,
+               Marketing_Options, Has_Light_Indicator
+        FROM `turbi-dc-ops.pods.tb_pods`
     """
     query_job = client.query(query)
-    
+
     lista_estacionamentos = []
-    
+
     for row in query_job.result():
         data = {
-            "id_friday": row.Id,               
-            "nome_pod": row.Name,                   
+            "id_friday": row.Id,
+            "nome_pod": row.Name,
             "status": row.Status,
-            "indicador_luminoso": row.Light_Indicator, 
+            "indicador_luminoso": row.Has_Light_Indicator,
             "distrito": row.District_Name,
             "cidade": row.City_Name,
             "estado": row.State,
             "vagas_disponiveis": row.Available_Vehicles,
             "capacidade_total": row.Parking_Lots,
             "parkinglotprice": row.Parking_Lot_Price,
-            "contato_nome": row.Contac_Name, 
+            "contato_nome": row.Contac_Name,
             "telefone": row.Contact_Telefone,
             "email": row.Contact_Email,
             "created_at": str(row.Start_Date) if row.Start_Date else None,
@@ -64,42 +68,35 @@ def bq_to_supabase():
             "h3_cell_res_8": row.H3_Cell,
             "link_drive": row.Drive_Pictures,
             "observacoes": row.Observations,
-            "operacao_24h": row.Operation_24h,
-            "disponivel": row.Available,
+            "operacao_24h": row.Is_Operation_24h,
+            "disponivel": row.Is_Available,
             "entrada_veiculos": row.Vehicle_Entrance,
             "entrada_pedestres": row.Pedestrian_Entrance,
-            "tipo_cobertura": row.Cover_Type,
-            "pavimento": row.Floor_Type,
             "configuracao_vagas": row.Vacancies_Configuration,
-            "protecao_incendio": row.Fire_Protection,
             "operacao_lavagem": row.Wash,
-            "check_demarcado": row.Designated_Parking_Space,
             "check_cameras": row.Security_Camera,
-            "check_guarita": row.Guardhouse,
+            "check_guarita": row.Has_Guardhouse,
             "check_virar_24h": row.Change_turn_24h,
             "is_blacklisted": row.Blacklist,
-            "has_ev_charger": row.Ev_Charger,
+            "has_ev_charger": row.Has_Ev_Charger,
             "local_roteador": row.Router_Place,
             "local_amplificador": row.Amplifier_Place,
-            "local_starlink": row.Starkink_Place, 
+            "local_starlink": row.Starkink_Place,
             "enxoval_marketing": row.Marketing_Options,
             "origem_registro": "base interna"
         }
         lista_estacionamentos.append(data)
-    
-    # Colunas de vistoria que NÃO devem ser sobrescritas pelo BQ
-    COLUNAS_VISTORIA = {"tipo_cobertura", "pavimento", "protecao_incendio", "has_ev_charger", "indicador_luminoso", "check_demarcado"}
 
-    # Colunas que o BQ pode atualizar com segurança
+    # Colunas que o BQ pode atualizar — NÃO inclui campos de vistoria nem de encerramento
     COLUNAS_BQ = [
-        "id_friday", "nome_pod", "status", "distrito", "cidade", "estado",
+        "id_friday", "nome_pod", "status", "indicador_luminoso", "distrito", "cidade", "estado",
         "vagas_disponiveis", "capacidade_total", "parkinglotprice", "contato_nome",
         "telefone", "email", "created_at", "check_overbooking", "latitude", "longitude",
         "h3_cell_res_8", "link_drive", "observacoes", "operacao_24h", "disponivel",
         "entrada_veiculos", "entrada_pedestres", "configuracao_vagas", "operacao_lavagem",
         "check_cameras", "check_guarita", "check_virar_24h", "is_blacklisted",
-        "local_roteador", "local_amplificador", "local_starlink", "enxoval_marketing",
-        "origem_registro"
+        "has_ev_charger", "local_roteador", "local_amplificador", "local_starlink",
+        "enxoval_marketing", "origem_registro"
     ]
 
     if lista_estacionamentos:
@@ -120,36 +117,38 @@ def bq_to_supabase():
             print(f"Inserindo {len(para_insert)} novos registros...")
             supabase.table("pods").insert(para_insert).execute()
 
-        # UPDATE apenas nas colunas do BQ, preservando colunas de vistoria
+        # UPDATE apenas nas colunas do BQ, preservando colunas de vistoria e encerramento
         if para_update:
             print(f"Atualizando {len(para_update)} registros existentes...")
             for registro in para_update:
                 registro_filtrado = {k: v for k, v in registro.items() if k in COLUNAS_BQ}
                 id_friday = registro_filtrado.pop("id_friday")
                 supabase.table("pods").update(registro_filtrado).eq("id_friday", id_friday).execute()
-        
+
     print("✅ Fluxo BigQuery -> Supabase concluído.")
 
 def supabase_to_bq():
     print("🤖 [Fluxo 2] Supabase -> BigQuery...")
-    
+
     colunas_supabase = (
         "id_friday, nome_pod, status, indicador_luminoso, distrito, cidade, estado, vagas_disponiveis, capacidade_total, parkinglotprice,"
         "contato_nome, telefone, email, created_at, check_overbooking, latitude, longitude, h3_cell_res_8, link_drive, observacoes,"
-        "operacao_24h, disponivel, entrada_veiculos, entrada_pedestres, tipo_cobertura, pavimento, configuracao_vagas, protecao_incendio,"
-        "operacao_lavagem, check_demarcado, check_cameras, check_guarita, check_virar_24h, is_blacklisted, has_ev_charger, local_roteador,"
-        "local_amplificador, local_starlink, enxoval_marketing, motivo_encerramento, detalhe_encerramento, data_encerramento"
+        "operacao_24h, disponivel, entrada_veiculos, entrada_pedestres, configuracao_vagas,"
+        "operacao_lavagem, check_cameras, check_guarita, check_virar_24h, is_blacklisted, has_ev_charger, local_roteador,"
+        "local_amplificador, local_starlink, enxoval_marketing,"
+        "tipo_cobertura, pavimento, protecao_incendio, check_demarcado,"
+        "motivo_encerramento, detalhe_encerramento, data_encerramento"
     )
-    
+
     response = supabase.table("pods").select(colunas_supabase).execute()
     records = response.data
-    
+
     if not records:
         print("Nenhum dado encontrado no Supabase para atualizar.")
         return
 
     records_validos = [r for r in records if r.get('id_friday') is not None]
-    
+
     if not records_validos:
         print("Nenhum registro com 'id_friday' válido para atualizar no BQ.")
         return
@@ -160,7 +159,7 @@ def supabase_to_bq():
     for r in records_validos:
         linha = {
             "Id": r['id_friday'],
-            "Light_Indicator": to_bool(r['indicador_luminoso']),
+            "Has_Light_Indicator": to_bool(r['indicador_luminoso']),
             "Status": r['status'],
             "Parking_Lots": r['capacidade_total'],
             "Parking_Lot_Price": r['parkinglotprice'],
@@ -179,34 +178,34 @@ def supabase_to_bq():
             "Longitude": r['longitude'],
             "H3_Cell": r['h3_cell_res_8'],
             "Drive_Pictures": r['link_drive'],
-            "Operation_24h": to_bool(r['operacao_24h']),
-            "Available": to_bool(r['disponivel']),
+            "Is_Operation_24h": to_bool(r['operacao_24h']),
+            "Is_Available": to_bool(r['disponivel']),
             "Vehicle_Entrance": r['entrada_veiculos'],
             "Pedestrian_Entrance": r['entrada_pedestres'],
             "Cover_Type": r['tipo_cobertura'],
             "Floor_Type": r['pavimento'],
             "Vacancies_Configuration": r['configuracao_vagas'],
-            "Fire_Protection": to_bool(r['protecao_incendio']),
-            "Wash": to_bool(r['operacao_lavagem']),
-            "Designated_Parking_Space": to_bool(r['check_demarcado']),
-            "Security_Camera": to_bool(r['check_cameras']),
-            "Guardhouse": to_bool(r['check_guarita']),
+            "Fire_Protection": r['protecao_incendio'],
+            "Wash": r['operacao_lavagem'],
+            "Is_Designated_Parking_Space": to_bool(r['check_demarcado']),
+            "Security_Camera": r['check_cameras'],
+            "Has_Guardhouse": to_bool(r['check_guarita']),
             "Change_turn_24h": to_bool(r['check_virar_24h']),
             "Blacklist": to_bool(r['is_blacklisted']),
-            "Ev_Charger": to_bool(r['has_ev_charger']),
+            "Has_Ev_Charger": to_bool(r['has_ev_charger']),
             "Router_Place": r['local_roteador'],
             "Amplifier_Place": r['local_amplificador'],
             "Starkink_Place": r['local_starlink'],
             "Marketing_Options": r['enxoval_marketing'],
             "Motivo_Inativacao": r['motivo_encerramento'],
             "Detalhe_Inativacao": r['detalhe_encerramento'],
-            "Data_Inativacao": r['data_encerramento']
+            "Data_Inativacao": r['data_encerramento'],
         }
         linhas_para_bq.append(linha)
 
-    dataset_ref = client.dataset("pods") 
+    dataset_ref = client.dataset("pods")
     stage_table_ref = dataset_ref.table("tb_pods_stage")
-    
+
     job_config = bigquery.LoadJobConfig(
         write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
         schema=[
@@ -229,8 +228,8 @@ def supabase_to_bq():
             bigquery.SchemaField("H3_Cell", "STRING"),
             bigquery.SchemaField("Drive_Pictures", "STRING"),
             bigquery.SchemaField("Observations", "STRING"),
-            bigquery.SchemaField("Operation_24h", "BOOL"),
-            bigquery.SchemaField("Available", "BOOL"),
+            bigquery.SchemaField("Is_Operation_24h", "BOOL"),
+            bigquery.SchemaField("Is_Available", "BOOL"),
             bigquery.SchemaField("Vehicle_Entrance", "STRING"),
             bigquery.SchemaField("Pedestrian_Entrance", "STRING"),
             bigquery.SchemaField("Cover_Type", "STRING"),
@@ -238,26 +237,26 @@ def supabase_to_bq():
             bigquery.SchemaField("Vacancies_Configuration", "STRING"),
             bigquery.SchemaField("Fire_Protection", "STRING"),
             bigquery.SchemaField("Wash", "STRING"),
-            bigquery.SchemaField("Designated_Parking_Space", "BOOL"),
-            bigquery.SchemaField("Security_Camera", "BOOL"),
-            bigquery.SchemaField("Guardhouse", "BOOL"),
+            bigquery.SchemaField("Is_Designated_Parking_Space", "BOOL"),
+            bigquery.SchemaField("Security_Camera", "STRING"),
+            bigquery.SchemaField("Has_Guardhouse", "BOOL"),
             bigquery.SchemaField("Change_turn_24h", "BOOL"),
             bigquery.SchemaField("Blacklist", "BOOL"),
-            bigquery.SchemaField("Ev_Charger", "BOOL"),
+            bigquery.SchemaField("Has_Ev_Charger", "BOOL"),
             bigquery.SchemaField("Router_Place", "STRING"),
             bigquery.SchemaField("Amplifier_Place", "STRING"),
             bigquery.SchemaField("Starkink_Place", "STRING"),
             bigquery.SchemaField("Marketing_Options", "STRING"),
-            bigquery.SchemaField("Light_Indicator", "BOOL"),
+            bigquery.SchemaField("Has_Light_Indicator", "BOOL"),
             bigquery.SchemaField("Motivo_Inativacao", "STRING"),
             bigquery.SchemaField("Detalhe_Inativacao", "STRING"),
             bigquery.SchemaField("Data_Inativacao", "TIMESTAMP"),
         ]
     )
-    
+
     print("Enviando dados para a tabela de estágio no BigQuery...")
     load_job = client.load_table_from_json(linhas_para_bq, stage_table_ref, job_config=job_config)
-    load_job.result() 
+    load_job.result()
 
     print("Executando o MERGE de atualização na tabela principal...")
     merge_query = """
@@ -265,8 +264,8 @@ def supabase_to_bq():
         USING `turbi-dc-ops.pods.tb_pods_stage` S
         ON T.Id = S.Id
         WHEN MATCHED THEN
-          UPDATE SET 
-            T.Light_Indicator = S.Light_Indicator,
+          UPDATE SET
+            T.Has_Light_Indicator = S.Has_Light_Indicator,
             T.Status = S.Status,
             T.Parking_Lots = S.Parking_Lots,
             T.Parking_Lot_Price = S.Parking_Lot_Price,
@@ -285,8 +284,8 @@ def supabase_to_bq():
             T.Longitude = S.Longitude,
             T.H3_Cell = S.H3_Cell,
             T.Drive_Pictures = S.Drive_Pictures,
-            T.Operation_24h = S.Operation_24h,
-            T.Available = S.Available,
+            T.Is_Operation_24h = S.Is_Operation_24h,
+            T.Is_Available = S.Is_Available,
             T.Vehicle_Entrance = S.Vehicle_Entrance,
             T.Pedestrian_Entrance = S.Pedestrian_Entrance,
             T.Cover_Type = S.Cover_Type,
@@ -294,12 +293,12 @@ def supabase_to_bq():
             T.Vacancies_Configuration = S.Vacancies_Configuration,
             T.Fire_Protection = S.Fire_Protection,
             T.Wash = S.Wash,
-            T.Designated_Parking_Space = S.Designated_Parking_Space,
+            T.Is_Designated_Parking_Space = S.Is_Designated_Parking_Space,
             T.Security_Camera = S.Security_Camera,
-            T.Guardhouse = S.Guardhouse,
+            T.Has_Guardhouse = S.Has_Guardhouse,
             T.Change_turn_24h = S.Change_turn_24h,
             T.Blacklist = S.Blacklist,
-            T.Ev_Charger = S.Ev_Charger,
+            T.Has_Ev_Charger = S.Has_Ev_Charger,
             T.Router_Place = S.Router_Place,
             T.Amplifier_Place = S.Amplifier_Place,
             T.Starkink_Place = S.Starkink_Place,
@@ -309,7 +308,7 @@ def supabase_to_bq():
             T.Data_Inativacao = S.Data_Inativacao
     """
     client.query(merge_query).result()
-    
+
     print("✅ Fluxo Supabase -> BigQuery concluído com sucesso total utilizando MERGE!")
 
 if __name__ == "__main__":
